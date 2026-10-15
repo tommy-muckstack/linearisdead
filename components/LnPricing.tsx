@@ -1,3 +1,5 @@
+import { MeasuredPage } from "./m/MeasuredPage";
+import pm from "./m/pricing390.json";
 import Link from "next/link";
 import { LnNav, LnCta, LnFoot } from "./LnShared";
 import { LnMobileCompare } from "./LnMobileCompare";
@@ -36,7 +38,8 @@ export function LnPricing() {
     els.push(<i key={g + "v"} className="vl" style={{ top: first - 22, height: rows.length * 44 }} />);
     H = last + 80;
   });
-  return <div className="ln-page" style={{ height: 6192 }}>
+  return <><MeasuredPage data={pm as never} className="ln-pm" />
+  <div className="ln-page mp-desk" style={{ height: 6192 }}>
     <LnNav active="Pricing" />
     <h1 className="ph">Pricing</h1>
     {PLANS.map((p, i) => <div key={p.n} className="pl" style={{ left: 80 + i * 336 }}>
@@ -52,5 +55,5 @@ export function LnPricing() {
     <p className="ft2">** Requires AI credits. <a>View docs ↗</a></p>
     <LnCta top={5245} />
     <LnFoot top={5695} />
-  </div>;
+  </div></>;
 }
