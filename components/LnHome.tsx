@@ -12,8 +12,8 @@ const Rule = ({ y }: { y: number }) => <hr className="rl" style={{ top: y }} />;
 export function LnHome() {
   return <div className="ln-page" style={{ height: 9960 }}>
     <LnNav />
-    <h1 className="h1">The product delivery<br />system for teams and agents</h1>
-    <p className="hs">Built for planning and shipping. Designed for the AI era.</p>
+    <h1 className="h1">The product development<br />system for teams and agents</h1>
+    <p className="hs">Purpose-built for planning and building products. Designed for the AI era.</p>
     <span className="nw"><b>New</b><a>Loops →</a></span>
     <div className="frame" style={{ top: 527 }}><div className="app">
       <div className="sb"><div className="ws"><LnMark s={14} /> Linear <u>⌄</u></div>
@@ -55,7 +55,7 @@ export function LnHome() {
     <h2 className="cl">Changelog</h2>
     <div className="clg">{[["Stacked pull requests", "Stacked pull requests are now displayed in Diffs. Move through changes faster.", "OCT 8, 2026"], ["New coding controls", "Coding sessions are the shortest path from issue to diff. Assign a task to an agent.", "SEP 24, 2026"], ["Loops for planning", "Loops are recurring agent workflows for product management.", "SEP 10, 2026"], ["Priority inbox", "An active workspace can create a significant amount of notifications each day.", "SEP 3, 2026"]].map(([t, d, dt], i) => <div key={t} style={{ left: 80 + i * 336 }}><i /><b>{t}</b><p>{d}</p><small>{dt}</small></div>)}<hr /></div>
     <a className="va">View all →</a>
-    <div className="qt a" style={{ top: 8237 }}><p>“You’ll probably build a better product, just because of the craft that went into it.”</p><div className="au"><i /><b>Gabriel Peal<small>Staff Software Engineer</small></b></div></div>
+    <div className="qt a" style={{ top: 8237 }}><p>“You’ll probably build a better product, just because of the craft that using Linear infuses on your brain.”</p><div className="au"><i /><b>Gabriel Peal<small>OpenAI</small></b></div></div>
     <div className="qt b" style={{ top: 8237 }}><p>“Our speed is intense and we help each other be action biased.”</p><div className="au"><i /><b>Nik Koblov<small>Head of Engineering</small></b></div></div>
     <p className="pc">Trusted by over <b>40,000</b> product teams. From ambitious startups to major enterprises.</p><a className="cs">Customer stories →</a>
     <LnCta top={9014} />
