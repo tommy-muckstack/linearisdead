@@ -2,7 +2,7 @@
 
 Free, open-source Linear alternative. Part of the [IsDead series](https://yourappisdead.com). Served at `https://yourappisdead.com/linearisdead`.
 
-**Status: local only** (not pushed, not deployed). Surfaces follow `templates/marketing-site.md` in `@isdead/design`: one marketing page (`/`, price comparison at `#pricing`), `/login`, and the app at `/app`.
+**Status: open source, not deployed yet**. Surfaces follow `templates/marketing-site.md` in `@isdead/design`: one marketing page (`/`, price comparison at `#pricing`), `/login`, and the app at `/app`.
 
 ## What works
 - **Issues:** create (C, with quick-create syntax `!urgent @me #bug +project ~3 /progress`), edit in a side pane, comment, delete, undo (⌘Z).
