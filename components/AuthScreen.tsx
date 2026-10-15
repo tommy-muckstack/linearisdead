@@ -21,7 +21,7 @@ export type AuthCfg = {
   top?: { logo?: boolean; right?: string; rightHref?: string; cta?: string; dark?: boolean };
   art?: { kind: "dark" | "color" | "none"; title?: string; sub?: string; bg?: string; fg?: string; blocks?: string[] };
   providersAfter?: boolean; emailButton?: string; forgotInline?: boolean; remember?: boolean; altButton?: string;
-  logoSize?: number; logoCenter?: boolean; footerNote?: string;
+  extraButtons?: string[]; lin?: boolean; logoSize?: number; logoCenter?: boolean; footerNote?: string;
   switchText?: [string, string]; signupSwitchText?: [string, string];
 };
 const GG = <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden><path fill="#4285F4" d="M23 12.3c0-.8-.1-1.5-.2-2.2H12v4.2h6.2a5.3 5.3 0 01-2.3 3.5v2.9h3.7c2.2-2 3.4-5 3.4-8.4z" /><path fill="#34A853" d="M12 23.5c3.1 0 5.7-1 7.6-2.8l-3.7-2.9c-1 .7-2.3 1.1-3.9 1.1-3 0-5.5-2-6.4-4.7H1.8v3A11.5 11.5 0 0012 23.5z" /><path fill="#FBBC05" d="M5.6 14.2a6.9 6.9 0 010-4.4v-3H1.8a11.5 11.5 0 000 10.4z" /><path fill="#EA4335" d="M12 5.4c1.7 0 3.2.6 4.4 1.7l3.3-3.3A11.5 11.5 0 001.8 6.8l3.8 3A6.9 6.9 0 0112 5.4z" /></svg>;
@@ -64,6 +64,7 @@ export function AuthScreen({ config, demo, to, signup = false, cfg }: { config: 
       {cfg.remember && needPw && <label className="au-rem"><input type="checkbox" /> Remember me</label>}
       {cfg.altButton ? <div className="au-two"><button type="button" className="au-alt" onClick={swap(mode === "signup" ? "signin" : "signup")}>{mode === "signup" ? "I have an account" : cfg.altButton}</button><button className="au-cta" disabled={busy}>{ctaLabel}</button></div> : <button className="au-cta" disabled={busy}>{ctaLabel}</button>}
     </form>}
+    {cfg.extraButtons && !showEmail && mode === "signin" && cfg.extraButtons.map(t => <button key={t} type="button" className="au-prov" disabled title={off}>{t}</button>)}
     {cfg.providersAfter && mode !== "reset" && cfg.providers.length > 0 && <div className="au-or"><span>OR</span></div>}
     {cfg.providersAfter && provs}
     {mode === "signin" && !cfg.forgotInline && <div className="au-links"><a href="#" onClick={swap("reset")}>Forgot password?</a></div>}
@@ -74,7 +75,7 @@ export function AuthScreen({ config, demo, to, signup = false, cfg }: { config: 
   </div>;
   const artEl = art && <aside className={`au-art au-art--${art.kind}`} style={{ background: art.bg, color: art.fg }}><div>{art.title && <h2>{art.title}</h2>}{art.sub && <p>{art.sub}</p>}
     {art.blocks && <div className="au-blocks">{art.blocks.map((c, i) => <i key={i} style={{ background: c, height: 60 + (i * 37) % 90 }} />)}</div>}</div></aside>;
-  return <main className={`au au--${cfg.layout}`} style={style}>
+  return <main className={`au au--${cfg.layout}${cfg.lin ? " au--lin" : ""}`} style={style}>
     {cfg.top && <header className={`au-top${cfg.top.dark ? " dark" : ""}`}>{cfg.top.logo !== false && !cfg.logoCenter ? <Link href="/" className="au-toplogo"><Logo size={22} /></Link> : <span />}<div>{cfg.top.right && <a href={cfg.top.rightHref ?? "#"}>{cfg.top.right}</a>}{cfg.top.cta && <Link className="au-topcta" href="/login?mode=signup">{cfg.top.cta}</Link>}</div></header>}
     <div className="au-body">{cfg.layout === "splitL" && artEl}<section className="au-main">{form}</section>{cfg.layout === "splitR" && artEl}</div>
   </main>;

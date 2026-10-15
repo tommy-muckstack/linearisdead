@@ -34,3 +34,13 @@
 .au-prov.primary{background:var(--au-cta);color:var(--au-ctafg);border-color:transparent}.au-prov.primary:hover:not(:disabled){background:var(--au-cta);filter:brightness(.92)}
 .au-fgt{float:right;font-weight:400;color:var(--au-accent);font-size:12px}.au-rem{display:flex;align-items:center;gap:8px;font-weight:400!important;margin:-4px 0 14px}.au-rem input{height:auto;margin:0}
 .au-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.au-alt{height:42px;border:1px solid #cfcfd6;border-radius:var(--au-r);background:#fff;font-weight:600;font-size:14px;font-family:inherit;cursor:pointer;color:var(--au-ink)}
+
+/* Linear login parity (1440) */
+.au--lin{background:#f8f8f9}.au--lin .au-main{padding:0;align-items:flex-start;justify-content:center}
+.au--lin .au-form{width:288px;padding-top:290px}.au--lin .au-logoc{margin-bottom:16px}
+.au--lin .au-form h1{font-size:18px;line-height:21px;font-weight:500;color:#2f2f31;letter-spacing:0;margin:0 0 24px;text-align:center}
+.au--lin .au-prov{height:44px;border-radius:9999px;margin-bottom:16px;border:1px solid #e4e4e7;background:#fefeff;color:#2f2f31;font-size:13px;font-weight:500;opacity:1}
+.au--lin .au-prov.primary{background:#6d78d5;color:#fefeff;border-color:transparent}
+.au--lin .au-switch{margin-top:16px;font-size:13px;line-height:16px;color:#5b5c5e;font-weight:450}.au--lin .au-switch a{color:#2f2f31;font-weight:500;text-decoration:none}
+.au--lin .au-form input:not([type=checkbox]){height:44px;border-radius:9999px;padding:0 18px;font-size:13px}.au--lin .au-cta{height:44px;border-radius:9999px;font-size:13px;font-weight:500;background:#6d78d5}
+.au--lin .au-logoc span{font-size:0!important}.au--lin .au-logoc svg{width:32px;height:32px}.au--lin .au-logoc rect{fill:#2f2f31;rx:12px}
