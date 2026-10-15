@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LnNav, LnCta, LnFoot } from "./LnShared";
+import { LnMobileCompare } from "./LnMobileCompare";
 
 type C = 0 | 1 | string;
 const PLANS = [
@@ -45,6 +46,7 @@ export function LnPricing() {
     <p className="tb">Trusted by more than <b>40,000</b> companies</p>
     <div className="lgs" style={{ top: 1060 }}>{["OpenAI", "Vercel", "Salesforce", "Figma", "Cursor", "Coinbase", "ramp"].map((l) => <span key={l}>{l}</span>)}</div>
     <a className="cs2">Customer stories →</a>
+    <LnMobileCompare plans={PLANS.map((p) => p.n)} groups={G} />
     {els}
     <div className="fb" style={{ top: 4830 }}>{[0, 1, 2, 3].map((i) => <div key={i} style={{ left: 448 + i * 224 }}>{i === 3 ? <a>Contact sales</a> : <><a className={i === 2 ? "h" : ""}>Get started</a>{i === 2 && <small>or <u>contact sales</u></small>}</>}</div>)}</div>
     <p className="ft2">** Requires AI credits. <a>View docs ↗</a></p>
