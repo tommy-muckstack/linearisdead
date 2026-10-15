@@ -1,0 +1,85 @@
+{
+  "name": "linear",
+  "source": "linear.app homepage + app look (near-black canvas, indigo #5E6AD2, hairline borders, tight tracking), measured 2026-10-14; original art",
+  "font": {
+    "sans": "Inter Tight",
+    "display": "Inter Tight",
+    "files": {
+      "Inter Tight": "linear/InterTight-Variable.woff2"
+    },
+    "mono": "ui-monospace, SFMono-Regular, Menlo, monospace",
+    "note": "Linear sets type in Inter Display (OFL, but Inter is already used by the superhuman theme). Inter Tight (OFL) is the tighter display cut of the same grotesque and is our lookalike for Inter Display's headline feel. Mono falls back to the system monospace; Berkeley Mono (proprietary) is not shipped."
+  },
+  "color": {
+    "bg": "#08090A",
+    "surface": "#101113",
+    "surfaceAlt": "#17181B",
+    "text": "#F7F8F8",
+    "textMuted": "#A3A7B0",
+    "textSubtle": "#6C707A",
+    "border": "#26282D",
+    "borderStrong": "#F7F8F8",
+    "danger": "#EB5757",
+    "success": "#4CB782",
+    "warning": "#F2C94C",
+    "onPrimary": "#FFFFFF",
+    "onAccent": "#FFFFFF",
+    "primary": "#5E6AD2",
+    "primaryHover": "#7B86E8",
+    "accent": "#7B86E8",
+    "accentHover": "#9AA3F2",
+    "accentSoft": "#1F2247",
+    "focus": "#7B86E8",
+    "heroFrom": "#08090A",
+    "heroMid": "#14163A",
+    "heroTo": "#08090A"
+  },
+  "radius": {
+    "xs": "3px",
+    "sm": "4px",
+    "md": "6px",
+    "lg": "8px",
+    "xl": "14px",
+    "pill": "9999px"
+  },
+  "space": {
+    "1": "4px",
+    "2": "8px",
+    "3": "12px",
+    "4": "16px",
+    "5": "20px",
+    "6": "24px",
+    "8": "32px",
+    "10": "40px",
+    "12": "48px",
+    "16": "64px"
+  },
+  "shadow": {
+    "sm": "0 1px 2px rgba(0,0,0,.4)",
+    "md": "0 4px 16px rgba(0,0,0,.45)",
+    "lg": "0 16px 48px rgba(0,0,0,.6)"
+  },
+  "type": {
+    "xs": "12px",
+    "sm": "14px",
+    "md": "16px",
+    "lg": "18px",
+    "xl": "24px",
+    "2xl": "32px",
+    "3xl": "44px",
+    "4xl": "64px",
+    "weightBody": 400,
+    "weightStrong": 600,
+    "weightHeading": 600,
+    "tracking": "-0.025em",
+    "lineHeight": 1.5
+  },
+  "control": {
+    "height": "40px",
+    "heightSm": "30px",
+    "borderWidth": "1px",
+    "buttonRadius": "8px",
+    "inputRadius": "6px",
+    "cardRadius": "12px"
+  }
+}
