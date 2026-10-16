@@ -7,6 +7,7 @@ import type { FirebaseClientConfig } from "@/lib/isdead-auth/config";
 import { signInWithEmail, signUpWithEmail, signInWithGoogle, resetPassword, authErrorMessage } from "@/lib/isdead-auth/client";
 import { BP } from "@/lib/basepath";
 import { Logo } from "@/components/Logo";
+import { EVENTS, track } from "@/lib/analytics";
 
 export type Provider = { id: "google"; label: string; signupLabel?: string; primary?: boolean };
 export type AuthCfg = {
@@ -36,7 +37,7 @@ export function AuthScreen({ config, demo, to, signup = false, cfg }: { config: 
     if (!config) { setErr("Sign-in isn't configured on this deployment yet."); return; }
     if (mode === "reset") return run(async () => { await resetPassword(config, email); setNote("If that email has an account, a reset link is on its way."); setMode("signin"); setStep(1); });
     if (!needPw) { setStep(2); return; }
-    run(async () => { if (mode === "signup") await signUpWithEmail(config, session, email, password); else await signInWithEmail(config, session, email, password); window.location.assign(to); }); };
+    run(async () => { if (mode === "signup") await signUpWithEmail(config, session, email, password); else await signInWithEmail(config, session, email, password); track(mode === "signup" ? EVENTS.app_signed_up : EVENTS.app_signed_in, { method: "email" }); window.location.assign(to); }); };
   const swap = (m: typeof mode) => (e: React.MouseEvent) => { e.preventDefault(); setMode(m); setStep(1); setErr(""); setNote(""); };
   const T = mode === "signup" ? (cfg.signupTitle ?? cfg.title) : mode === "reset" ? "Reset your password" : cfg.title;
   const S = mode === "signup" ? (cfg.signupSub ?? cfg.sub) : mode === "reset" ? "Enter your email and we'll send you a reset link." : cfg.sub;
@@ -44,7 +45,7 @@ export function AuthScreen({ config, demo, to, signup = false, cfg }: { config: 
   const sw = mode === "signup" ? (cfg.signupSwitchText ?? ["Already have an account?", "Log in"]) : (cfg.switchText ?? ["Don't have an account?", "Sign up"]);
   const style = { "--au-accent": cfg.accent, "--au-cta": cfg.ctaBg ?? cfg.accent, "--au-ctafg": cfg.ctaFg ?? "#fff", "--au-r": `${cfg.radius ?? 6}px`, "--au-ink": cfg.ink ?? "#1a1a1a", "--au-muted": cfg.muted ?? "#6b6b6b", "--au-bg": cfg.bg ?? "#fff", fontFamily: cfg.font } as React.CSSProperties;
   const art = cfg.art && cfg.art.kind !== "none" ? cfg.art : null;
-  const provs = mode !== "reset" && (showEmail || cfg.providersAfter || cfg.emailButton) ? cfg.providers.map(p => <button key={p.id} type="button" className={`au-prov${p.primary ? " primary" : ""}`} disabled={busy || !config} onClick={() => run(async () => { await signInWithGoogle(config!, session); window.location.assign(to); })}>{GG}<span>{mode === "signup" ? (p.signupLabel ?? p.label) : p.label}</span></button>) : null;
+  const provs = mode !== "reset" && (showEmail || cfg.providersAfter || cfg.emailButton) ? cfg.providers.map(p => <button key={p.id} type="button" className={`au-prov${p.primary ? " primary" : ""}`} disabled={busy || !config} onClick={() => run(async () => { await signInWithGoogle(config!, session); track(mode === "signup" ? EVENTS.app_signed_up : EVENTS.app_signed_in, { method: "google" }); window.location.assign(to); })}>{GG}<span>{mode === "signup" ? (p.signupLabel ?? p.label) : p.label}</span></button>) : null;
   const form = <div className={`au-form${cfg.card ? " au-card" : ""}`}>
     {cfg.logoCenter && <div className="au-logoc"><Logo size={cfg.logoSize ?? 28} /></div>}
     <h1>{T}</h1>{S && <p className="au-sub">{S}</p>}
