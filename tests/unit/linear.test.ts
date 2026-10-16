@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { addComment, burnup, createIssue, createProject, currentCycle, cycleStats, deleteIssues, emptyWorkspace, ensureCycles, filterIssues, groupIssues, identifier, parseFilter, parseQuickCreate, projectStats, rollOver, updateIssue } from "@/lib/linear/model";
 import { seedWorkspace } from "@/lib/linear/seed";
 const NOW = new Date("2026-10-14T15:00:00Z");
-const base = () => ensureCycles(emptyWorkspace("Tommy"), NOW);
+const base = () => ensureCycles(emptyWorkspace("Me"), NOW);
 describe("issues", () => {
   it("numbers issues sequentially per team", () => {
     let ws = base(); ws = createIssue(ws, { title: "A" }, NOW).ws; const r = createIssue(ws, { title: "B" }, NOW);
@@ -22,27 +22,27 @@ describe("issues", () => {
   });
   it("comments and deletes", () => {
     const { ws, issue } = createIssue(base(), { title: "x" }, NOW); const c = addComment(ws, issue.id, " hello ", NOW);
-    expect(c.issues[0].comments[0]).toMatchObject({ body: "hello", by: "Tommy" }); expect(addComment(c, issue.id, "  ").issues[0].comments).toHaveLength(1);
+    expect(c.issues[0].comments[0]).toMatchObject({ body: "hello", by: "Me" }); expect(addComment(c, issue.id, "  ").issues[0].comments).toHaveLength(1);
     expect(deleteIssues(c, [issue.id]).issues).toHaveLength(0);
   });
 });
 describe("quick create", () => {
-  const ws = { ...emptyWorkspace("Tommy"), members: ["Tommy", "Ada Lovelace"], projects: [] as any[] };
+  const ws = { ...emptyWorkspace("Me"), members: ["Me", "Design lead"], projects: [] as any[] };
   const pj = createProject(ws, "Billing v2");
   it("parses priority, assignee, labels, estimate and status", () => {
     const r = parseQuickCreate("Fix the login redirect !urgent @me #bug ~3 /progress", { ...pj.ws });
-    expect(r).toMatchObject({ title: "Fix the login redirect", priority: 1, assignee: "Tommy", labels: ["Bug"], estimate: 3, status: "in_progress" });
+    expect(r).toMatchObject({ title: "Fix the login redirect", priority: 1, assignee: "Me", labels: ["Bug"], estimate: 3, status: "in_progress" });
   });
   it("matches members by prefix and projects by slug", () => {
-    const r = parseQuickCreate("Invoice math @ada +billing", { ...pj.ws }); expect(r.assignee).toBe("Ada Lovelace"); expect(r.projectId).toBe(pj.project.id);
+    const r = parseQuickCreate("Invoice math @des +billing", { ...pj.ws }); expect(r.assignee).toBe("Design lead"); expect(r.projectId).toBe(pj.project.id);
   });
   it("leaves unknown @mentions in the title", () => expect(parseQuickCreate("ping @zed now", pj.ws).title).toBe("ping @zed now"));
 });
 describe("filters", () => {
-  const ws = seedWorkspace("Tommy", NOW);
+  const ws = seedWorkspace("Me", NOW);
   it("parses tokens", () => expect(parseFilter("login status:todo,in_progress priority:high")).toMatchObject({ text: "login", status: ["todo", "in_progress"], priority: [2] }));
   it("filters by assignee:me and is:open", () => {
-    const r = filterIssues(ws, "assignee:me is:open", ws.issues, NOW); expect(r.length).toBeGreaterThan(0); expect(r.every(i => i.assignee === "Tommy" && !["done", "canceled"].includes(i.status))).toBe(true);
+    const r = filterIssues(ws, "assignee:me is:open", ws.issues, NOW); expect(r.length).toBeGreaterThan(0); expect(r.every(i => i.assignee === "Me" && !["done", "canceled"].includes(i.status))).toBe(true);
   });
   it("filters by cycle:current and label", () => {
     const r = filterIssues(ws, "cycle:current label:bug", ws.issues, NOW); expect(r.length).toBeGreaterThan(0); expect(r.every(i => i.cycleId === currentCycle(ws, NOW)!.id && i.labels.includes("Bug"))).toBe(true);
@@ -69,25 +69,25 @@ describe("cycles", () => {
     expect(cycleStats(ws, cyc.id)).toMatchObject({ scope: 4, completed: 3, started: 1, percent: 75, count: 2 });
   });
   it("rolls unfinished issues into the next cycle", () => {
-    const ws = seedWorkspace("Tommy", NOW); const cur = currentCycle(ws, NOW)!; const next = ws.cycles.find(c => c.id !== cur.id && new Date(c.startsAt) > NOW)!;
+    const ws = seedWorkspace("Me", NOW); const cur = currentCycle(ws, NOW)!; const next = ws.cycles.find(c => c.id !== cur.id && new Date(c.startsAt) > NOW)!;
     const open = ws.issues.filter(i => i.cycleId === cur.id && !["done", "canceled"].includes(i.status)).length; const r = rollOver(ws, cur.id, next.id);
     expect(r.moved).toBe(open); expect(r.ws.issues.filter(i => i.cycleId === cur.id).every(i => i.status === "done")).toBe(true);
   });
   it("burn-up is monotonic and never exceeds scope", () => {
-    const ws = seedWorkspace("Tommy", NOW); const cyc = currentCycle(ws, NOW)!; const { points } = burnup(ws, cyc, NOW);
+    const ws = seedWorkspace("Me", NOW); const cyc = currentCycle(ws, NOW)!; const { points } = burnup(ws, cyc, NOW);
     expect(points.length).toBeGreaterThan(0); for (let i = 1; i < points.length; i++) expect(points[i].completed).toBeGreaterThanOrEqual(points[i - 1].completed);
     for (const p of points) expect(p.completed).toBeLessThanOrEqual(p.scope);
   });
 });
 describe("projects", () => {
   it("reports completion percentage", () => {
-    const ws = seedWorkspace("Tommy", NOW); const p = ws.projects[0]; const s = projectStats(ws, p.id);
+    const ws = seedWorkspace("Me", NOW); const p = ws.projects[0]; const s = projectStats(ws, p.id);
     expect(s.total).toBeGreaterThan(0); expect(s.percent).toBe(Math.round((s.done / s.total) * 100));
   });
 });
 describe("seed", () => {
   it("builds a cycle that is already underway so the burn-up has a line", () => {
-    const ws = seedWorkspace("Tommy", NOW); const cyc = currentCycle(ws, NOW)!; expect(burnup(ws, cyc, NOW).points.length).toBeGreaterThanOrEqual(6);
+    const ws = seedWorkspace("Me", NOW); const cyc = currentCycle(ws, NOW)!; expect(burnup(ws, cyc, NOW).points.length).toBeGreaterThanOrEqual(6);
     expect(cycleStats(ws, cyc.id).completed).toBeGreaterThan(0);
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-import { burnup, cycleIssues, cycleStats, identifier, projectStats, groupIssues, type Cycle, type Group, type Issue, type Project, type Status, type Workspace, STATUSES, currentCycle } from "@/lib/linear/model";
-import { Avatar, PriorityIcon, StatusIcon, fmtDate } from "./ui";
+import { burnup, cycleIssues, isOverdue, subProgress, cycleStats, identifier, projectStats, groupIssues, type Cycle, type Group, type Issue, type Project, type Status, type Workspace, STATUSES, currentCycle } from "@/lib/linear/model";
+import { Avatar, PriorityIcon, StatusIcon, fmtDate, fmtDay } from "./ui";
 
 export type RowProps = { ws: Workspace; focusId: string | null; selected: Set<string>; onFocus: (id: string) => void; onSelect: (id: string) => void; onOpen: (id: string) => void };
 
@@ -14,6 +14,8 @@ export function IssueRow({ ws, issue, focusId, selected, onFocus, onSelect, onOp
     <span className="lin-row__title">{issue.title}</span>
     {issue.labels.map(l => <span key={l} className="lin-tag">{l}</span>)}
     {project && <span className="lin-row__proj">{project.name}</span>}
+    {(() => { const sp = subProgress(ws, issue.id); return sp.total ? <span className="lin-row__subs" title="Sub-issues done">◔ {sp.done}/{sp.total}</span> : null; })()}
+    {issue.dueDate && <span className={"lin-row__due" + (isOverdue(issue) ? " lin-overdue" : "")} title="Due date">◷ {fmtDay(issue.dueDate)}</span>}
     {issue.estimate != null && <span className="lin-row__est">{issue.estimate}</span>}
     <span className="lin-row__date">{fmtDate(issue.createdAt)}</span><Avatar name={issue.assignee} />
   </div>;
