@@ -5,6 +5,7 @@ import { STATUSES, type Priority, type Status } from "@/lib/linear/model";
 export function StatusIcon({ status, size = 14 }: { status: Status; size?: number }) {
   const s = STATUSES.find(x => x.id === status)!; const c = s.color; const r = 5.5;
   return <svg width={size} height={size} viewBox="0 0 14 14" aria-label={s.label} role="img" style={{ flex: "none" }}>
+    {status === "triage" && <><circle cx="7" cy="7" r="6.2" fill={c} /><path d="M4.2 7h5.6M8 5.2 9.8 7 8 8.8" fill="none" stroke="#08090A" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></>}
     {status === "backlog" && <circle cx="7" cy="7" r={r} fill="none" stroke={c} strokeWidth="1.5" strokeDasharray="2 2" />}
     {status === "todo" && <circle cx="7" cy="7" r={r} fill="none" stroke={c} strokeWidth="1.5" />}
     {(status === "in_progress" || status === "in_review") && <><circle cx="7" cy="7" r={r} fill="none" stroke={c} strokeWidth="1.5" /><path d={status === "in_progress" ? "M7 7 L7 3 A4 4 0 0 1 7 11 Z" : "M7 7 L7 3 A4 4 0 1 1 3 7 Z"} fill={c} /></>}

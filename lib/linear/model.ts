@@ -1,7 +1,8 @@
 // LinearIsDead core: issues, projects, cycles. Pure functions over a plain JSON workspace so they are easy to test and to persist.
-export type StatusType = "backlog" | "unstarted" | "started" | "completed" | "canceled";
-export type Status = "backlog" | "todo" | "in_progress" | "in_review" | "done" | "canceled";
+export type StatusType = "triage" | "backlog" | "unstarted" | "started" | "completed" | "canceled";
+export type Status = "triage" | "backlog" | "todo" | "in_progress" | "in_review" | "done" | "canceled";
 export const STATUSES: { id: Status; label: string; type: StatusType; color: string }[] = [
+  { id: "triage", label: "Triage", type: "triage", color: "#E8833A" },
   { id: "backlog", label: "Backlog", type: "backlog", color: "#6C707A" },
   { id: "todo", label: "Todo", type: "unstarted", color: "#A3A7B0" },
   { id: "in_progress", label: "In Progress", type: "started", color: "#F2C94C" },
@@ -29,7 +30,8 @@ export type Issue = {
   /** YYYY-MM-DD */ dueDate: string | null; parentId: string | null; creator: string;
   createdAt: string; updatedAt: string; completedAt: string | null; comments: Comment[]; history: Activity[];
 };
-export type Project = { id: string; name: string; summary: string; status: "planned" | "started" | "paused" | "completed"; lead: string | null; targetDate: string | null };
+export type Project = { id: string; name: string; summary: string; status: "planned" | "started" | "paused" | "completed"; lead: string | null; targetDate: string | null; startDate?: string | null };
+export type Initiative = { id: string; name: string; description: string; status: "planned" | "active" | "completed"; owner: string | null; projectIds: string[]; targetDate: string | null };
 export type Cycle = { id: string; number: number; startsAt: string; endsAt: string };
 export type Workspace = {
   teamKey: string; teamName: string; me: string; members: string[]; labels: string[];
@@ -37,6 +39,11 @@ export type Workspace = {
   issues: Issue[]; projects: Project[]; cycles: Cycle[];
   /** Settings › Teams › Estimates. Optional so older saved workspaces still load. */
   estimateScale?: "fibonacci" | "linear" | "exponential" | "tshirt";
+  /** Workspace name and URL key (onboarding / Settings › Workspace). */
+  workspaceName?: string; urlKey?: string;
+  triageEnabled?: boolean; initiatives?: Initiative[];
+  /** Inbox: notification ids the user has read or removed. */
+  inboxRead?: string[]; inboxHidden?: string[];
 };
 
 const DAY = 86_400_000;
@@ -182,7 +189,7 @@ export function groupIssues(ws: Workspace, list: Issue[], by: GroupBy, keepEmpty
     : by === "priority" ? PRIORITIES.map(p => ({ key: String(p.id), label: p.label, test: (i: Issue) => i.priority === p.id }))
     : by === "assignee" ? [...ws.members, null].map(m => ({ key: m ?? "none", label: m ?? "Unassigned", test: (i: Issue) => i.assignee === m }))
     : [...ws.projects.map(p => ({ key: p.id, label: p.name, test: (i: Issue) => i.projectId === p.id })), { key: "none", label: "No project", test: (i: Issue) => !i.projectId }];
-  return defs.map(d => ({ key: d.key, label: d.label, issues: sortIssues(list.filter(d.test)) })).filter(g => g.issues.length || (keepEmpty && by === "status" && g.key !== "canceled"));
+  return defs.map(d => ({ key: d.key, label: d.label, issues: sortIssues(list.filter(d.test)) })).filter(g => g.issues.length || (keepEmpty && by === "status" && g.key !== "canceled" && g.key !== "triage"));
 }
 
 // ---- cycles ----
@@ -275,3 +282,53 @@ export function activityText(a: Activity): string {
 }
 /** Run `f` as another member, so the activity it records is attributed to them (seed data and tests). */
 export function asMember(ws: Workspace, who: string, f: (w: Workspace) => Workspace): Workspace { return { ...f({ ...ws, me: who }), me: ws.me }; }
+
+// ---- triage ----
+export const inTriage = (i: Issue) => i.status === "triage";
+export function acceptIssue(ws: Workspace, id: string, now = new Date()): Workspace { return updateIssue(ws, id, { status: "todo" }, now); }
+export function declineIssue(ws: Workspace, id: string, now = new Date()): Workspace { return updateIssue(ws, id, { status: "canceled" }, now); }
+export function markDuplicate(ws: Workspace, id: string, of: string, now = new Date()): Workspace {
+  const orig = ws.issues.find(i => i.id === of); if (!orig || of === id) return ws;
+  return addComment(updateIssue(ws, id, { status: "canceled" }, now), id, `Marked as a duplicate of ${identifier(ws, orig)}`, now);
+}
+
+// ---- inbox: activity by other people on issues you're part of ----
+export type Notification = { id: string; issueId: string; at: string; by: string; text: string; read: boolean };
+/** You are subscribed to issues you created, are assigned, or commented on. */
+export const isSubscribed = (ws: Workspace, i: Issue) => i.assignee === ws.me || i.creator === ws.me || i.comments.some(c => c.by === ws.me);
+export function inbox(ws: Workspace): Notification[] {
+  const read = new Set(ws.inboxRead ?? []), hidden = new Set(ws.inboxHidden ?? []); const out: Notification[] = [];
+  for (const i of ws.issues) {
+    if (!isSubscribed(ws, i)) continue;
+    for (const a of i.history ?? []) if (a.by && a.by !== ws.me) out.push({ id: a.id, issueId: i.id, at: a.at, by: a.by, text: activityText(a), read: read.has(a.id) });
+    for (const c of i.comments) if (c.by !== ws.me) out.push({ id: c.id, issueId: i.id, at: c.at, by: c.by, text: `commented: ${c.body.slice(0, 140)}`, read: read.has(c.id) });
+  }
+  return out.filter(n => !hidden.has(n.id)).sort((a, b) => b.at.localeCompare(a.at));
+}
+export const markRead = (ws: Workspace, ids: string[]): Workspace => ({ ...ws, inboxRead: [...new Set([...(ws.inboxRead ?? []), ...ids])].slice(-2000) });
+export const hideNotifications = (ws: Workspace, ids: string[]): Workspace => ({ ...ws, inboxHidden: [...new Set([...(ws.inboxHidden ?? []), ...ids])].slice(-2000) });
+/** Your own recent changes, newest first (My issues › Activity). */
+export function myActivity(ws: Workspace) {
+  const out: { id: string; issueId: string; at: string; text: string }[] = [];
+  for (const i of ws.issues) { for (const a of i.history ?? []) if (a.by === ws.me) out.push({ id: a.id, issueId: i.id, at: a.at, text: activityText(a) }); for (const c of i.comments) if (c.by === ws.me) out.push({ id: c.id, issueId: i.id, at: c.at, text: "commented" }); }
+  return out.sort((a, b) => b.at.localeCompare(a.at));
+}
+
+// ---- initiatives ----
+export function createInitiative(ws: Workspace, name: string): { ws: Workspace; initiative: Initiative } {
+  const n = name.trim(); if (!n) throw new Error("An initiative needs a name");
+  const initiative: Initiative = { id: uid("ini"), name: n, description: "", status: "planned", owner: ws.me, projectIds: [], targetDate: null };
+  return { ws: { ...ws, initiatives: [...(ws.initiatives ?? []), initiative] }, initiative };
+}
+export const updateInitiative = (ws: Workspace, id: string, patch: Partial<Omit<Initiative, "id">>): Workspace => ({ ...ws, initiatives: (ws.initiatives ?? []).map(x => (x.id === id ? { ...x, ...patch } : x)) });
+export const deleteInitiative = (ws: Workspace, id: string): Workspace => ({ ...ws, initiatives: (ws.initiatives ?? []).filter(x => x.id !== id) });
+export function initiativeStats(ws: Workspace, ini: Initiative) {
+  const ps = ini.projectIds.map(id => ws.projects.find(p => p.id === id)).filter(Boolean) as Project[];
+  const all = ps.map(p => projectStats(ws, p.id)); const total = all.reduce((n, s) => n + s.total, 0), done = all.reduce((n, s) => n + s.done, 0);
+  return { projects: ps.length, active: ps.filter(p => p.status === "started").length, percent: total ? Math.round((done / total) * 100) : 0 };
+}
+export const updateProject = (ws: Workspace, id: string, patch: Partial<Omit<Project, "id">>): Workspace => ({ ...ws, projects: ws.projects.map(p => (p.id === id ? { ...p, ...patch } : p)) });
+
+// ---- workspace identity ----
+export const slugify = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+export const teamKeyFrom = (name: string) => (name.replace(/[^A-Za-z]/g, "").slice(0, 3) || "ENG").toUpperCase();
