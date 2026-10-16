@@ -20,10 +20,14 @@ export const PRIORITIES: { id: Priority; label: string; key: string }[] = [
 export const priorityLabel = (p: Priority) => PRIORITIES[p].label;
 
 export type Comment = { id: string; by: string; body: string; at: string };
+/** One entry in an issue's activity log. `from`/`to` are display values (labels, names, dates), never ids. */
+export type ActivityKind = "created" | "status" | "priority" | "assignee" | "label_added" | "label_removed" | "project" | "cycle" | "estimate" | "due" | "parent" | "title" | "description";
+export type Activity = { id: string; at: string; by: string; kind: ActivityKind; from?: string | null; to?: string | null };
 export type Issue = {
   id: string; number: number; title: string; description: string; status: Status; priority: Priority;
   assignee: string | null; labels: string[]; projectId: string | null; cycleId: string | null; estimate: number | null;
-  createdAt: string; updatedAt: string; completedAt: string | null; comments: Comment[];
+  /** YYYY-MM-DD */ dueDate: string | null; parentId: string | null; creator: string;
+  createdAt: string; updatedAt: string; completedAt: string | null; comments: Comment[]; history: Activity[];
 };
 export type Project = { id: string; name: string; summary: string; status: "planned" | "started" | "paused" | "completed"; lead: string | null; targetDate: string | null };
 export type Cycle = { id: string; number: number; startsAt: string; endsAt: string };
@@ -31,6 +35,8 @@ export type Workspace = {
   teamKey: string; teamName: string; me: string; members: string[]; labels: string[];
   nextNumber: number; nextCycleNumber: number; cycleDays: number;
   issues: Issue[]; projects: Project[]; cycles: Cycle[];
+  /** Settings › Teams › Estimates. Optional so older saved workspaces still load. */
+  estimateScale?: "fibonacci" | "linear" | "exponential" | "tshirt";
 };
 
 const DAY = 86_400_000;
@@ -40,7 +46,7 @@ export const identifier = (ws: Workspace, i: Issue) => `${ws.teamKey}-${i.number
 const iso = (d: Date) => d.toISOString();
 const startOfDay = (d: Date) => { const x = new Date(d); x.setUTCHours(0, 0, 0, 0); return x; };
 
-export type IssueInput = Partial<Pick<Issue, "title" | "description" | "status" | "priority" | "assignee" | "labels" | "projectId" | "cycleId" | "estimate">>;
+export type IssueInput = Partial<Pick<Issue, "title" | "description" | "status" | "priority" | "assignee" | "labels" | "projectId" | "cycleId" | "estimate" | "dueDate" | "parentId">>;
 
 export function createIssue(ws: Workspace, input: IssueInput, now = new Date()): { ws: Workspace; issue: Issue } {
   const title = (input.title ?? "").trim();
@@ -49,7 +55,9 @@ export function createIssue(ws: Workspace, input: IssueInput, now = new Date()):
   const issue: Issue = {
     id: uid("iss"), number: ws.nextNumber, title, description: input.description ?? "", status, priority: input.priority ?? 0,
     assignee: input.assignee ?? null, labels: [...new Set(input.labels ?? [])], projectId: input.projectId ?? null, cycleId: input.cycleId ?? null, estimate: input.estimate ?? null,
+    dueDate: input.dueDate ?? null, parentId: input.parentId && ws.issues.some(i => i.id === input.parentId) ? input.parentId : null, creator: ws.me,
     createdAt: iso(now), updatedAt: iso(now), completedAt: isDone(status) ? iso(now) : null, comments: [],
+    history: [{ id: uid("a"), at: iso(now), by: ws.me, kind: "created" }],
   };
   const labels = [...new Set([...ws.labels, ...issue.labels])];
   return { ws: { ...ws, nextNumber: ws.nextNumber + 1, labels, issues: [issue, ...ws.issues] }, issue };
@@ -58,12 +66,55 @@ export function createIssue(ws: Workspace, input: IssueInput, now = new Date()):
 export function updateIssue(ws: Workspace, id: string, patch: IssueInput, now = new Date()): Workspace {
   return { ...ws, issues: ws.issues.map(i => {
     if (i.id !== id) return i;
-    const next: Issue = { ...i, ...patch, title: patch.title !== undefined ? (patch.title.trim() || i.title) : i.title, updatedAt: iso(now) };
-    if (patch.status && patch.status !== i.status) next.completedAt = isDone(patch.status) ? iso(now) : null;
-    return next;
+    const p = { ...patch }; if (p.parentId && (p.parentId === id || isDescendant(ws, p.parentId, id))) delete p.parentId; // no cycles
+    const next: Issue = { ...i, ...p, title: p.title !== undefined ? (p.title.trim() || i.title) : i.title, updatedAt: iso(now) };
+    if (p.status && p.status !== i.status) next.completedAt = isDone(p.status) ? iso(now) : null;
+    const log = diffActivity(ws, i, next, now);
+    return log.length ? { ...next, history: [...(i.history ?? []), ...log] } : next;
   }), labels: patch.labels ? [...new Set([...ws.labels, ...patch.labels])] : ws.labels };
 }
-export const deleteIssues = (ws: Workspace, ids: string[]): Workspace => ({ ...ws, issues: ws.issues.filter(i => !ids.includes(i.id)) });
+const isDescendant = (ws: Workspace, maybeChild: string, ancestor: string): boolean => {
+  let cur = ws.issues.find(i => i.id === maybeChild); const seen = new Set<string>();
+  while (cur?.parentId && !seen.has(cur.id)) { if (cur.parentId === ancestor) return true; seen.add(cur.id); cur = ws.issues.find(i => i.id === cur!.parentId); }
+  return false;
+};
+/** Activity entries for every tracked field that changed between two versions of an issue. */
+export function diffActivity(ws: Workspace, a: Issue, b: Issue, now = new Date()): Activity[] {
+  const out: Activity[] = []; const at = iso(now);
+  const add = (kind: ActivityKind, from: string | null, to: string | null) => out.push({ id: uid("a"), at, by: ws.me, kind, from, to });
+  const proj = (x: string | null) => ws.projects.find(p => p.id === x)?.name ?? null;
+  const cyc = (x: string | null) => { const c = ws.cycles.find(c => c.id === x); return c ? `Cycle ${c.number}` : null; };
+  const par = (x: string | null) => { const p = ws.issues.find(i => i.id === x); return p ? identifier(ws, p) : null; };
+  if (a.status !== b.status) add("status", statusInfo(a.status).label, statusInfo(b.status).label);
+  if (a.priority !== b.priority) add("priority", priorityLabel(a.priority), priorityLabel(b.priority));
+  if (a.assignee !== b.assignee) add("assignee", a.assignee, b.assignee);
+  for (const l of b.labels) if (!a.labels.includes(l)) add("label_added", null, l);
+  for (const l of a.labels) if (!b.labels.includes(l)) add("label_removed", l, null);
+  if (a.projectId !== b.projectId) add("project", proj(a.projectId), proj(b.projectId));
+  if (a.cycleId !== b.cycleId) add("cycle", cyc(a.cycleId), cyc(b.cycleId));
+  if (a.estimate !== b.estimate) add("estimate", a.estimate == null ? null : String(a.estimate), b.estimate == null ? null : String(b.estimate));
+  if ((a.dueDate ?? null) !== (b.dueDate ?? null)) add("due", a.dueDate ?? null, b.dueDate ?? null);
+  if ((a.parentId ?? null) !== (b.parentId ?? null)) add("parent", par(a.parentId ?? null), par(b.parentId ?? null));
+  if (a.title !== b.title) add("title", a.title, b.title);
+  if (a.description !== b.description) add("description", null, null);
+  return out;
+}
+/** Deleting a parent keeps its sub-issues; they just lose the parent link. */
+export const deleteIssues = (ws: Workspace, ids: string[]): Workspace => ({ ...ws, issues: ws.issues.filter(i => !ids.includes(i.id)).map(i => (i.parentId && ids.includes(i.parentId) ? { ...i, parentId: null } : i)) });
+export const subIssues = (ws: Workspace, id: string) => ws.issues.filter(i => i.parentId === id).sort((a, b) => a.number - b.number);
+export function subProgress(ws: Workspace, id: string) { const s = subIssues(ws, id).filter(i => i.status !== "canceled"); return { total: s.length, done: s.filter(i => isDone(i.status)).length }; }
+/** Fill fields added after a workspace was first saved, so old browser data keeps working. */
+export function normalizeIssue(i: Issue): Issue {
+  if (i.history && i.creator !== undefined && i.dueDate !== undefined && i.parentId !== undefined) return i;
+  return { ...i, dueDate: i.dueDate ?? null, parentId: i.parentId ?? null, creator: i.creator ?? "", history: i.history ?? [{ id: uid("a"), at: i.createdAt, by: i.creator ?? "", kind: "created" }] };
+}
+export function normalizeWorkspace(ws: Workspace): Workspace {
+  let changed = false; const issues = ws.issues.map(i => { const n = normalizeIssue(i); if (n !== i) changed = true; return n; });
+  return changed ? { ...ws, issues } : ws;
+}
+/** Today in the viewer's calendar as YYYY-MM-DD. */
+export const todayISO = (now = new Date()) => new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+export const isOverdue = (i: Pick<Issue, "dueDate" | "status">, now = new Date()) => !!i.dueDate && isOpen(i.status) && i.dueDate < todayISO(now);
 export function addComment(ws: Workspace, id: string, body: string, now = new Date()): Workspace {
   const b = body.trim(); if (!b) return ws;
   return { ...ws, issues: ws.issues.map(i => i.id === id ? { ...i, updatedAt: iso(now), comments: [...i.comments, { id: uid("c"), by: ws.me, body: b, at: iso(now) }] } : i) };
@@ -202,3 +253,25 @@ export function renameMember(ws: Workspace, from: string, to: string): Workspace
 export function emptyWorkspace(me = "You", teamKey = "ENG", teamName = "Engineering"): Workspace {
   return { teamKey, teamName, me, members: [me], labels: ["Bug", "Feature", "Improvement"], nextNumber: 1, nextCycleNumber: 1, cycleDays: 14, issues: [], projects: [], cycles: [] };
 }
+
+// ---- activity log wording ----
+const shortDate = (d: string) => new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+export function activityText(a: Activity): string {
+  switch (a.kind) {
+    case "created": return "created the issue";
+    case "status": return `changed status from ${a.from} to ${a.to}`;
+    case "priority": return a.to === "No priority" ? "removed the priority" : `set priority to ${a.to}`;
+    case "assignee": return a.to ? `assigned the issue to ${a.to}` : `unassigned ${a.from}`;
+    case "label_added": return `added label ${a.to}`;
+    case "label_removed": return `removed label ${a.from}`;
+    case "project": return a.to ? `moved the issue to project ${a.to}` : `removed the issue from project ${a.from}`;
+    case "cycle": return a.to ? `added the issue to ${a.to}` : `removed the issue from ${a.from}`;
+    case "estimate": return a.to ? `set the estimate to ${a.to} point${a.to === "1" ? "" : "s"}` : "removed the estimate";
+    case "due": return a.to ? `set the due date to ${shortDate(a.to)}` : "removed the due date";
+    case "parent": return a.to ? `made this a sub-issue of ${a.to}` : "removed the parent issue";
+    case "title": return `renamed the issue to “${a.to}”`;
+    case "description": return "updated the description";
+  }
+}
+/** Run `f` as another member, so the activity it records is attributed to them (seed data and tests). */
+export function asMember(ws: Workspace, who: string, f: (w: Workspace) => Workspace): Workspace { return { ...f({ ...ws, me: who }), me: ws.me }; }
