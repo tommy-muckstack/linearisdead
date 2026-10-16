@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import { STATUSES, addLabel, addMember, deleteLabel, issuesCsv, parseBackup, removeMember, renameLabel, renameMember, slugify, type Workspace } from "@/lib/linear/model";
 import type { FirebaseClientConfig } from "@/lib/isdead-auth/config";
 import { BP } from "@/lib/basepath";
+import { signOutSubmit } from "@/lib/analytics";
 import { Avatar, StatusIcon } from "./ui";
 
 export const SETTINGS: [string, string, string][] = [
@@ -48,7 +49,7 @@ export function SettingsView({ ws, section, commit, replace, email, guest, demo,
     case "security": return guest ? <SignInPrompt what="Password and session settings" /> : <>
       <Row label="Password" hint="We email a link to set a new password. Accounts that use Google sign in through Google instead.">
         <button className="ids-btn ids-btn--outline ids-btn--sm" disabled={demo || !firebase} onClick={async () => { setErr(""); setMsg(""); try { const { resetPassword } = await import("@/lib/isdead-auth/client"); await resetPassword(firebase!, email); setMsg(`Reset link sent to ${email}.`); } catch (e) { setErr((e as Error).message); } }}>Send password reset email</button></Row>
-      <Row label="Sessions" hint="Sign out here and on every other device. Your workspace stays in this browser."><form method="post" action={`${BP}/api/session/logout`}><button className="ids-btn ids-btn--outline ids-btn--sm">Sign out everywhere</button></form></Row>
+      <Row label="Sessions" hint="Sign out here and on every other device. Your workspace stays in this browser."><form method="post" action={`${BP}/api/session/logout`} onSubmit={signOutSubmit}><button className="ids-btn ids-btn--outline ids-btn--sm">Sign out everywhere</button></form></Row>
       {demo && <p className="ids-muted">The demo account has no password to reset.</p>}
     </>;
     case "workspace": return <>

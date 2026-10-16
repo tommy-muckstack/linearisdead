@@ -5,6 +5,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { BP } from "@/lib/basepath";
 import { useLocal } from "@/lib/useLocal";
 import { Logo } from "@/components/Logo";
+import { EVENTS, identify, signOutSubmit, track } from "@/lib/analytics";
 import {
   PRIORITIES, STATUSES, DEFAULT_DISPLAY, withDisplayDefaults, saveView, updateView, deleteView, type Display, addComment, renameMember, normalizeWorkspace, todayISO, acceptIssue, declineIssue, markDuplicate, inbox, isSubscribed, markRead, hideNotifications, createInitiative, updateInitiative, deleteInitiative, updateProject, createIssue, createProject, currentCycle, deleteIssues, emptyWorkspace, ensureCycles, filterIssues, groupIssues, identifier, isOpen, rollOver, setProjectStatus, toggleLabel, updateIssue,
   type GroupBy, type Issue, type IssueInput, type Priority, type Status, type Workspace as WS,
@@ -36,6 +37,7 @@ export function Workspace({ uid, name, email, demo, guest = false, view, firebas
   const [overlay, setOverlay] = useState<Overlay>(null); const [toast, setToast] = useState<string>(""); const [cycleSel, setCycleSel] = useState<string | null>(null);
   const history = useRef<WS[]>([]); const gPending = useRef(false); const gTimer = useRef<ReturnType<typeof setTimeout>>(undefined); const filterRef = useRef<HTMLInputElement>(null);
   const me = name || email.split("@")[0] || "You";
+  useEffect(() => { identify(uid, demo ? "demo" : guest ? "guest" : "firebase"); }, [uid, demo, guest]);
 
   // first load: demo gets a believable workspace; everyone gets cycles
   // first visit: the demo gets a seeded workspace, a guest's work follows them into their account, everyone else is onboarded
@@ -84,20 +86,20 @@ export function Workspace({ uid, name, email, demo, guest = false, view, firebas
   useEffect(() => { if (focusId) document.querySelector(`[data-id="${focusId}"]`)?.scrollIntoView({ block: "nearest" }); }, [focusId]);
 
   const targets = useCallback((): string[] => (selected.size ? [...selected] : openId ? [openId] : focusId ? [focusId] : []), [selected, openId, focusId]);
-  const apply = useCallback((ids: string[], patch: (i: Issue) => IssueInput, msg: string) => { if (!ws || !ids.length) return; let n = ws; for (const id of ids) { const i = n.issues.find(x => x.id === id); if (i) n = updateIssue(n, id, patch(i)); } commit(n, msg); }, [ws, commit]);
-  const triageAct = useCallback((a: "accept" | "decline", id: string) => { if (!ws) return; commit(a === "accept" ? acceptIssue(ws, id) : declineIssue(ws, id), a === "accept" ? "Accepted · moved to Todo" : "Declined"); }, [ws, commit]);
+  const apply = useCallback((ids: string[], patch: (i: Issue) => IssueInput, msg: string) => { if (!ws || !ids.length) return; let n = ws; let field = ""; for (const id of ids) { const i = n.issues.find(x => x.id === id); if (i) { const p = patch(i); field ||= Object.keys(p)[0] ?? ""; n = updateIssue(n, id, p); } } commit(n, msg); track(EVENTS.app_issue_updated, { field, count: ids.length }); }, [ws, commit]);
+  const triageAct = useCallback((a: "accept" | "decline", id: string) => { if (!ws) return; commit(a === "accept" ? acceptIssue(ws, id) : declineIssue(ws, id), a === "accept" ? "Accepted · moved to Todo" : "Declined"); track(a === "accept" ? EVENTS.app_triage_accepted : EVENTS.app_triage_declined); }, [ws, commit]);
   const go = useCallback((path: string) => { setOpenId(null); setSelected(new Set()); router.push(path); }, [router]);
   const openPicker = useCallback((field: Field, ids?: string[]) => { const t = ids ?? targets(); if (t.length) setOverlay({ kind: "picker", field, targets: t }); }, [targets]);
   const move = useCallback((d: number) => { if (!flat.length) return; const i = Math.max(0, Math.min(flat.length - 1, flat.findIndex(x => x.id === focusId) + d)); setFocusId(flat[i].id); if (openId) setOpenId(flat[i].id); }, [flat, focusId, openId]);
   const toggleSel = useCallback((id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; }), []);
-  const remove = useCallback(() => { const t = targets(); if (!ws || !t.length) return; commit(deleteIssues(ws, t), t.length > 1 ? `${t.length} issues deleted` : "Issue deleted"); setOpenId(null); setSelected(new Set()); }, [ws, targets, commit]);
-  const setLayout = useCallback((layout: "list" | "board") => setDisplay({ layout }), [setDisplay]);
+  const remove = useCallback(() => { const t = targets(); if (!ws || !t.length) return; commit(deleteIssues(ws, t), t.length > 1 ? `${t.length} issues deleted` : "Issue deleted"); track(EVENTS.app_issues_deleted, { count: t.length }); setOpenId(null); setSelected(new Set()); }, [ws, targets, commit]);
+  const setLayout = useCallback((layout: "list" | "board") => { setDisplay({ layout }); track(EVENTS.app_layout_changed, { layout }); }, [setDisplay]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (overlay) return;
       const el = e.target as HTMLElement; const typing = el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setOverlay({ kind: "palette" }); return; }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setOverlay({ kind: "palette" }); track(EVENTS.app_command_menu_opened); return; }
       if (typing) return;
       if (e.metaKey || e.ctrlKey) { if (e.key.toLowerCase() === "z") { e.preventDefault(); undo(); } else if (e.key === "Backspace" || e.key === "Delete") { e.preventDefault(); remove(); } return; }
       if (e.altKey) return;
@@ -171,7 +173,7 @@ export function Workspace({ uid, name, email, demo, guest = false, view, firebas
         {SETTINGS.filter(x => x[0] === g).map(([, k, l]) => <Fragment key={k}>{nav(`/app/settings/${k}`, g === "Teams" ? ws.teamName : l, (arg || "preferences") === k)}</Fragment>)}</div>)}</nav>
     </aside>
     <main className="lin-main"><header className="lin-main__hd"><h1>Settings</h1></header>
-      <div className="lin-scroll">{known ? <SettingsView key={arg} ws={ws} section={arg ?? ""} commit={commit} replace={w => { history.current = []; if (!w) { deleted.current = true; setOnboard(true); router.push("/app"); } setStored(w); }} email={email} guest={guest} demo={demo} firebase={firebase} /> : <AppNotFound />}</div></main>
+      <div className="lin-scroll">{known ? <SettingsView key={arg} ws={ws} section={arg ?? ""} commit={(w, msg) => { commit(w, msg); track(EVENTS.app_settings_changed, { section: arg || "preferences" }); }} replace={w => { history.current = []; if (!w) { deleted.current = true; setOnboard(true); router.push("/app"); } setStored(w); }} email={email} guest={guest} demo={demo} firebase={firebase} /> : <AppNotFound />}</div></main>
     {toast && <div className="lin-toast" role="status" data-testid="toast">{toast}{history.current.length > 0 && <button onClick={undo}>Undo</button>}</div>}
   </div>;
 
@@ -197,7 +199,7 @@ export function Workspace({ uid, name, email, demo, guest = false, view, firebas
           <Link className="iconbtn" href="/app/settings" aria-label="Settings" data-testid="settings-link">⚙</Link><button className="iconbtn" onClick={() => setOverlay({ kind: "help" })} aria-label="Keyboard shortcuts">?</button></>
         : <><Link className="iconbtn" href="/app/settings" aria-label="Settings" data-testid="settings-link">⚙</Link><span className="ids-muted" style={{ fontSize: 12 }}>{demo ? "Demo account" : email}</span>
           <button className="iconbtn" onClick={() => setOverlay({ kind: "help" })} aria-label="Keyboard shortcuts">?</button>
-          <form method="post" action={`${BP}/api/session/logout`} style={{ margin: 0 }}><button className="iconbtn">Sign out</button></form></>}</div>
+          <form method="post" action={`${BP}/api/session/logout`} style={{ margin: 0 }} onSubmit={signOutSubmit}><button className="iconbtn">Sign out</button></form></>}</div>
     </aside>
     <main className="lin-main">
       <header className="lin-main__hd">
@@ -219,23 +221,23 @@ export function Workspace({ uid, name, email, demo, guest = false, view, firebas
             : kind === "my" && arg === "activity" ? <MyActivity ws={ws} onOpen={id => { setFocusId(id); setOpenId(id); }} />
             : kind === "triage" ? <TriageView ws={ws} rp={rp} list={flat} onAccept={id => triageAct("accept", id)} onDecline={id => triageAct("decline", id)} onDuplicate={id => setOverlay({ kind: "dup", id })} onNew={() => setOverlay({ kind: "create", initial: { status: "triage" } })} />
             : kind === "teams" ? <TeamsView ws={ws} />
-            : kind === "views" ? <ViewsPage ws={ws} onCreate={(n, f) => { const r = saveView(ws, n, f, display); commit(r.ws, "View created"); go(`/app/view/${r.view.id}`); }} onUpdate={(id, p) => commit(updateView(ws, id, p))} onDelete={id => commit(deleteView(ws, id), "View deleted")} />
-            : kind === "initiatives" ? <InitiativesView ws={ws} onNew={n => commit(createInitiative(ws, n).ws, "Initiative created")} onUpdate={(id, p) => commit(updateInitiative(ws, id, p))} onDelete={id => commit(deleteInitiative(ws, id), "Initiative deleted")} />
+            : kind === "views" ? <ViewsPage ws={ws} onCreate={(n, f) => { const r = saveView(ws, n, f, display); commit(r.ws, "View created"); track(EVENTS.app_view_saved, { from: "views_page", has_filter: !!f }); go(`/app/view/${r.view.id}`); }} onUpdate={(id, p) => commit(updateView(ws, id, p))} onDelete={id => commit(deleteView(ws, id), "View deleted")} />
+            : kind === "initiatives" ? <InitiativesView ws={ws} onNew={n => { commit(createInitiative(ws, n).ws, "Initiative created"); track(EVENTS.app_initiative_created); }} onUpdate={(id, p) => commit(updateInitiative(ws, id, p))} onDelete={id => commit(deleteInitiative(ws, id), "Initiative deleted")} />
             : kind === "roadmap" ? <RoadmapView ws={ws} onDates={(id, p) => commit(updateProject(ws, id, p), "Dates updated")} />
-            : kind === "cycles" ? <CyclesView ws={ws} selectedId={cycleSel} onSelect={setCycleSel} rp={rp} onRoll={(f, t) => { const r = rollOver(ws, f, t); commit(r.ws, r.moved ? `${r.moved} issue${r.moved > 1 ? "s" : ""} rolled over` : "Nothing to roll over"); }} />
-            : kind === "projects" ? <ProjectsView ws={ws} onNew={n => commit(createProject(ws, n).ws, "Project created")} onStatus={(id, s) => commit(setProjectStatus(ws, id, s))} onOpen={id => go(`/app/project/${id}`)} />
+            : kind === "cycles" ? <CyclesView ws={ws} selectedId={cycleSel} onSelect={setCycleSel} rp={rp} onRoll={(f, t) => { const r = rollOver(ws, f, t); commit(r.ws, r.moved ? `${r.moved} issue${r.moved > 1 ? "s" : ""} rolled over` : "Nothing to roll over"); track(EVENTS.app_cycle_rolled_over, { count: r.moved }); }} />
+            : kind === "projects" ? <ProjectsView ws={ws} onNew={n => { commit(createProject(ws, n).ws, "Project created"); track(EVENTS.app_project_created); }} onStatus={(id, s) => commit(setProjectStatus(ws, id, s))} onOpen={id => go(`/app/project/${id}`)} />
             : display.layout === "board" ? <Board ws={ws} issues={issues} rp={rp} order={display.order} onMove={(id, s) => apply([id], () => ({ status: s }), `Moved to ${STATUSES.find(x => x.id === s)!.label}`)} onCreateIn={s => setOverlay({ kind: "create", initial: { status: s as Status } })} />
             : <IssueList groups={groups} rp={rp} onCreateIn={s => setOverlay({ kind: "create", initial: s === "status" || !STATUSES.some(x => x.id === s) ? undefined : { status: s as Status } })} />}
         </div>
-        {opened && <IssuePane ws={ws} issue={opened} onUpdate={p => commit(updateIssue(ws, opened.id, p))} onComment={b => commit(addComment(ws, opened.id, b), "Comment added")} onDelete={remove} onClose={() => setOpenId(null)} openPicker={f => openPicker(f, [opened.id])} onOpen={id => { setFocusId(id); setOpenId(id); }} onAddSub={() => setOverlay({ kind: "create", initial: { parentId: opened.id, projectId: opened.projectId, cycleId: opened.cycleId } })} />}
+        {opened && <IssuePane ws={ws} issue={opened} onUpdate={p => { commit(updateIssue(ws, opened.id, p)); track(EVENTS.app_issue_updated, { field: Object.keys(p)[0] ?? "", count: 1 }); }} onComment={b => { commit(addComment(ws, opened.id, b), "Comment added"); track(EVENTS.app_comment_added); }} onDelete={remove} onClose={() => setOpenId(null)} openPicker={f => openPicker(f, [opened.id])} onOpen={id => { setFocusId(id); setOpenId(id); }} onAddSub={() => setOverlay({ kind: "create", initial: { parentId: opened.id, projectId: opened.projectId, cycleId: opened.cycleId } })} />}
       </div>
     </main>
     {toast && <div className="lin-toast" role="status" data-testid="toast">{toast}{history.current.length > 0 && <button onClick={undo}>Undo</button>}</div>}
     {overlay?.kind === "picker" && (() => { const p = pickerFor(overlay); return <Picker title={p.title} options={p.opts} multi={(p as any).multi} onPick={p.pick} onClose={() => setOverlay(null)} />; })()}
     {overlay?.kind === "dup" && <Picker title="Duplicate of" options={ws.issues.filter(i => i.id !== overlay.id && i.status !== "triage").slice(0, 300).map(i => ({ id: i.id, label: `${identifier(ws, i)} ${i.title}`, icon: <StatusIcon status={i.status} /> }))} onPick={of => commit(markDuplicate(ws, overlay.id, of), "Marked as duplicate")} onClose={() => setOverlay(null)} />}
-    {overlay?.kind === "saveview" && <SaveViewDialog filter={q} onClose={() => setOverlay(null)} onSave={n => { const r = saveView(ws, n, q, display); commit(r.ws, "View saved"); setOverlay(null); setQ(""); go(`/app/view/${r.view.id}`); }} />}
+    {overlay?.kind === "saveview" && <SaveViewDialog filter={q} onClose={() => setOverlay(null)} onSave={n => { const r = saveView(ws, n, q, display); commit(r.ws, "View saved"); track(EVENTS.app_view_saved, { from: "filter_bar", has_filter: !!q }); setOverlay(null); setQ(""); go(`/app/view/${r.view.id}`); }} />}
     {overlay?.kind === "palette" && <Picker title="Type a command or search" options={paletteItems} onPick={runPalette} onClose={() => setOverlay(null)} />}
-    {overlay?.kind === "create" && <CreateModal ws={ws} initial={overlay.initial} onClose={() => setOverlay(null)} onCreate={(input, more) => { const r = createIssue(ws, { ...input, projectId: input.projectId ?? (kind === "project" ? arg ?? null : null) }); commit(r.ws, `Created ${identifier(r.ws, r.issue)}`); if (!more) { setOverlay(null); setFocusId(r.issue.id); } }} />}
+    {overlay?.kind === "create" && <CreateModal ws={ws} initial={overlay.initial} onClose={() => setOverlay(null)} onCreate={(input, more) => { const r = createIssue(ws, { ...input, projectId: input.projectId ?? (kind === "project" ? arg ?? null : null) }); commit(r.ws, `Created ${identifier(r.ws, r.issue)}`); track(EVENTS.app_issue_created, { priority: r.issue.priority, has_project: !!r.issue.projectId, has_assignee: !!r.issue.assignee }); if (!more) { setOverlay(null); setFocusId(r.issue.id); } }} />}
     {overlay?.kind === "help" && <div className="lin-overlay" onMouseDown={e => { if (e.target === e.currentTarget) setOverlay(null); }}><HelpDialog onClose={() => setOverlay(null)} /></div>}
   </div>;
 }
