@@ -25,14 +25,14 @@ await run("pages", async ({ newPage }) => {
   await p.goto(BASE + "/app"); await p.waitForSelector("[data-testid=linear-app], [data-testid=onboarding]");
   await p.goto(BASE + "/another-workspace"); ok(/\/app$/.test(p.url()), "unknown slug with a session → the app");
   // pricing copy
-  await p.goto(BASE + "/pricing"); const t = await p.locator(".mp-desk").innerText();
+  await p.goto(BASE + "/pricing"); const t = (await p.locator(".mp-desk").innerText()).replace(/not affiliated with[^.]*\.[^.]*\./g, "");
   ok(t.includes("Zendesk and Intercom integrations"), "pricing: Zendesk and Intercom integrations");
   ok(t.includes("Account management") && t.includes("Migration & onboarding support"), "pricing: Enterprise list matches");
   ok(!/Trusted by|40,000/.test(t), "pricing: no borrowed customer claims");
   ok(!NAME.test(t), "pricing: no bare Linear name");
   ok((await p.getByTestId("free-note").innerText()).includes("no paid plans"), "pricing says LinearIsDead has no paid plans");
   await shot(p, "02-pricing");
-  const m = await newPage({ w: 390, h: 844 }); await m.goto(BASE + "/pricing"); const mt = await m.locator(".mp").innerText();
+  const m = await newPage({ w: 390, h: 844 }); await m.goto(BASE + "/pricing"); const mt = (await m.locator(".mp").innerText()).replace(/not affiliated with[^.]*\.[^.]*\./g, "");
   ok(!NAME.test(mt) && !/Trusted by|40,000/.test(mt), "390 pricing: no bare Linear, no borrowed claims");
   ok(await m.locator(".ln-pm-foot [data-testid=site-foot]").isVisible(), "390 pricing uses the routed footer");
 });

@@ -9,8 +9,8 @@ import "./lnsite.css";
 import { FOOTER, LEGAL, PRODUCT_MENU, RESOURCES_MENU, TOP_LINKS, isExternal, type SiteLink } from "@/lib/sitemap";
 
 const A = ({ l, className, onClick }: { l: SiteLink; className?: string; onClick?: () => void }) => isExternal(l.href)
-  ? <a href={l.href} className={className} onClick={onClick}>{l.label}{l.desc && <small>{l.desc}</small>}</a>
-  : <Link href={l.href} className={className} onClick={onClick}>{l.label}{l.desc && <small>{l.desc}</small>}</Link>;
+  ? <a href={l.href} className={className} onClick={onClick}>{l.desc ? <><span>{l.label}</span><small>{l.desc}</small></> : l.label}</a>
+  : <Link href={l.href} className={className} onClick={onClick}>{l.desc ? <><span>{l.label}</span><small>{l.desc}</small></> : l.label}</Link>;
 
 function Mega({ label, items, open, setOpen }: { label: string; items: SiteLink[]; open: string | null; setOpen: (v: string | null) => void }) {
   const on = open === label; const t = useRef<ReturnType<typeof setTimeout>>(undefined);

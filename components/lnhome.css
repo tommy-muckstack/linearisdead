@@ -140,3 +140,35 @@
 }
 @media(max-width:900px){.ln-page>*:nth-child(38){margin-top:85px!important}.ln-page>*:nth-child(42){margin-top:99.16px!important}}
 .ln-pm-foot{display:none}@media(max-width:900px){.ln-pm-foot{display:block}}
+/* centered 1440 canvas on wide screens; shared nav/footer (lnsite.css) */
+.ln-wrap{background:#08090a;min-height:100vh}
+.ln-page{max-width:1440px;margin:0 auto}
+.ln-page>.lns-nav{left:0;right:0;top:0;position:absolute}
+.ln-page .lns-nav .lns-in{max-width:none;padding:0 80px}
+.app .sb span{display:block;padding:0 10px;height:27px;line-height:27px;border-radius:5px}
+.app .sb span.on{background:#1b1d21;color:#f7f8f8}
+.app .mn .hdr .tools{display:flex;gap:12px;align-items:center;color:#6c7078}
+.app .mn .hdr .tools em{margin:0 6px 0 0}
+.app .ag .props{margin:8px 14px 0;display:grid}
+.app .ag .props div{display:grid;grid-template-columns:84px 1fr;padding:5px 0;font-size:12px}
+.app .ag .props dt{color:#6c7078}.app .ag .props dd{margin:0;color:#d0d6e0}
+.app .ag .subs{margin:10px 14px 0;padding-top:10px;border-top:1px solid #1b1d20;display:grid;gap:6px;font-size:12px;color:#b4b8bf}
+.app .ag .subs b{font-weight:510;color:#f7f8f8}
+.clg>a{position:absolute;top:0;width:300px;color:inherit;height:200px}
+.clg>a:first-child i{background:#e5484d}
+@media(max-width:900px){
+  .ln-page>.lns-nav{position:sticky!important;margin:0!important;width:auto!important;top:0}
+  .ln-page .lns-nav .lns-in{padding:0 16px}
+  .clg>a{position:static!important;height:auto;width:auto}
+}
+.ln-pm-nav{display:none}@media(max-width:900px){.ln-pm-nav{display:block;position:sticky;top:0;z-index:60;height:72px;margin-bottom:-72px}}
+@media(max-width:900px){
+  .ln-page>.lgs{display:flex!important;flex-wrap:wrap!important;justify-content:flex-start!important;gap:8px 18px!important;font-size:16px!important;height:auto!important;margin:24px 16px 8px!important;overflow:visible!important}
+  .ln-page>.pw{margin:8px 16px!important;letter-spacing:.08em}
+  .ln-page>.ctb{justify-content:center;margin:24px 16px!important}.ln-page .ctb a{width:auto!important;padding:0 18px;white-space:nowrap}
+}
+@media(max-width:900px){
+  .ln-page:has(>.h1)>.figs{overflow-x:auto!important;scroll-snap-type:x mandatory;margin-left:16px!important;scrollbar-width:none}
+  .ln-page:has(>.h1) .fg{left:auto!important;scroll-snap-align:start}
+  .ln-page:has(>.h1) .fg span,.ln-page:has(>.h1) .fg b,.ln-page:has(>.h1) .fg p,.ln-page:has(>.h1) .fg u{position:absolute!important}
+}

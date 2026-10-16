@@ -34,5 +34,5 @@ a{color:var(--ids-color-accent)}button,input,select,textarea{font:inherit;color:
 .iconbtn:hover{border-color:var(--ids-color-accent)}.iconbtn.on{background:var(--ids-color-accent-soft);border-color:var(--ids-color-accent);color:var(--ids-color-text)}.iconbtn:disabled{opacity:.45;cursor:default}
 /* linear theme: dark canvas */
 html[data-ids-theme=linear] body{background:var(--ids-color-bg)}
-html[data-ids-theme=linear] a:not(.ids-btn){color:var(--ids-color-accent-hover)}
+:where(html[data-ids-theme=linear]) a:where(:not(.ids-btn)){color:var(--ids-color-accent-hover)}
 .lin .lin-nav__item{color:var(--ids-color-text-muted)}.lin .lin-nav__item.on,.lin .lin-nav__item:hover{color:var(--ids-color-text)}

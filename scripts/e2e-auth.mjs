@@ -33,7 +33,7 @@ await run("auth", async ({ newPage }) => {
   await shot(p, "08-signup");
   await p.goto(BASE + "/login?mode=signup"); ok(p.url().endsWith("/signup"), "old ?mode=signup links redirect to /signup");
   // marketing nav Sign up
-  await p.goto(BASE + "/"); ok((await p.locator(".ln-nav .su").getAttribute("href"))?.endsWith("/signup"), "nav Sign up → /signup");
+  await p.goto(BASE + "/"); ok((await p.locator(".lns-nav .lns-su").getAttribute("href"))?.endsWith("/signup"), "nav Sign up → /signup");
   // sign out → login, then /app is a fresh guest workspace
   await p.goto(BASE + "/login"); await p.getByRole("button", { name: "Use the demo account" }).click(); await p.waitForURL(/\/app/); await p.waitForSelector("[data-testid=linear-app]");
   await p.getByRole("button", { name: "Sign out" }).click(); await p.waitForURL(/\/login$/);
