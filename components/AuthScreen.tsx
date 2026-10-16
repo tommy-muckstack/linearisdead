@@ -8,7 +8,7 @@ import { signInWithEmail, signUpWithEmail, signInWithGoogle, resetPassword, auth
 import { BP } from "@/lib/basepath";
 import { Logo } from "@/components/Logo";
 
-export type Provider = { id: string; label: string; signupLabel?: string; primary?: boolean };
+export type Provider = { id: "google"; label: string; signupLabel?: string; primary?: boolean };
 export type AuthCfg = {
   layout: "center" | "splitL" | "splitR";
   bg?: string;                  // page background (css)
@@ -21,21 +21,15 @@ export type AuthCfg = {
   top?: { logo?: boolean; right?: string; rightHref?: string; cta?: string; dark?: boolean };
   art?: { kind: "dark" | "color" | "none"; title?: string; sub?: string; bg?: string; fg?: string; blocks?: string[] };
   providersAfter?: boolean; emailButton?: string; forgotInline?: boolean; remember?: boolean; altButton?: string;
-  extraButtons?: string[]; lin?: boolean; logoSize?: number; logoCenter?: boolean; footerNote?: string;
+  lin?: boolean; logoSize?: number; logoCenter?: boolean; footerNote?: string;
   switchText?: [string, string]; signupSwitchText?: [string, string];
 };
 const GG = <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden><path fill="#4285F4" d="M23 12.3c0-.8-.1-1.5-.2-2.2H12v4.2h6.2a5.3 5.3 0 01-2.3 3.5v2.9h3.7c2.2-2 3.4-5 3.4-8.4z" /><path fill="#34A853" d="M12 23.5c3.1 0 5.7-1 7.6-2.8l-3.7-2.9c-1 .7-2.3 1.1-3.9 1.1-3 0-5.5-2-6.4-4.7H1.8v3A11.5 11.5 0 0012 23.5z" /><path fill="#FBBC05" d="M5.6 14.2a6.9 6.9 0 010-4.4v-3H1.8a11.5 11.5 0 000 10.4z" /><path fill="#EA4335" d="M12 5.4c1.7 0 3.2.6 4.4 1.7l3.3-3.3A11.5 11.5 0 001.8 6.8l3.8 3A6.9 6.9 0 0112 5.4z" /></svg>;
-const badge = (t: string, c: string) => <span className="au-badge" style={{ background: c }}>{t}</span>;
-const ICON: Record<string, React.ReactNode> = {
-  google: GG, microsoft: badge("▦", "#5e6ad2"), apple: badge("●", "#222"), slack: badge("#", "#7c4dff"), outlook: badge("O", "#2b79d6"),
-  facebook: badge("f", "#1877f2"), sso: badge("◎", "#6b7280"), saml: badge("◎", "#6b7280"), github: badge("◆", "#24292f"), passkey: badge("⚿", "#6b7280"),
-};
 export function AuthScreen({ config, demo, to, signup = false, cfg }: { config: FirebaseClientConfig | null; demo: boolean; to: string; signup?: boolean; cfg: AuthCfg }) {
   const [mode, setMode] = useState<"signin" | "signup" | "reset">(signup ? "signup" : "signin");
   const [step, setStep] = useState<1 | 2>(1); const [showEmail, setShowEmail] = useState(!cfg.emailButton);
   const [email, setEmail] = useState(""), [password, setPassword] = useState(""), [busy, setBusy] = useState(false), [err, setErr] = useState(""), [note, setNote] = useState("");
   const session = `${BP}/api/session`;
-  const off = "Not available yet in the open-source version";
   const run = async (f: () => Promise<void>) => { setBusy(true); setErr(""); setNote(""); try { await f(); } catch (e) { setErr(authErrorMessage(e)); } finally { setBusy(false); } };
   const needPw = mode !== "reset" && (cfg.passwordInline || step === 2 || !cfg.emailFirst);
   const submit = (e: React.FormEvent) => { e.preventDefault();
@@ -50,7 +44,7 @@ export function AuthScreen({ config, demo, to, signup = false, cfg }: { config: 
   const sw = mode === "signup" ? (cfg.signupSwitchText ?? ["Already have an account?", "Log in"]) : (cfg.switchText ?? ["Don't have an account?", "Sign up"]);
   const style = { "--au-accent": cfg.accent, "--au-cta": cfg.ctaBg ?? cfg.accent, "--au-ctafg": cfg.ctaFg ?? "#fff", "--au-r": `${cfg.radius ?? 6}px`, "--au-ink": cfg.ink ?? "#1a1a1a", "--au-muted": cfg.muted ?? "#6b6b6b", "--au-bg": cfg.bg ?? "#fff", fontFamily: cfg.font } as React.CSSProperties;
   const art = cfg.art && cfg.art.kind !== "none" ? cfg.art : null;
-  const provs = mode !== "reset" && (showEmail || cfg.providersAfter || cfg.emailButton) ? cfg.providers.map(p => { const real = p.id === "google"; return <button key={p.id} type="button" className={`au-prov${p.primary ? " primary" : ""}`} disabled={real ? busy || !config : true} title={real ? undefined : off} onClick={real ? () => run(async () => { await signInWithGoogle(config!, session); window.location.assign(to); }) : undefined}>{ICON[p.id]}<span>{mode === "signup" ? (p.signupLabel ?? p.label) : p.label}</span></button>; }) : null;
+  const provs = mode !== "reset" && (showEmail || cfg.providersAfter || cfg.emailButton) ? cfg.providers.map(p => <button key={p.id} type="button" className={`au-prov${p.primary ? " primary" : ""}`} disabled={busy || !config} onClick={() => run(async () => { await signInWithGoogle(config!, session); window.location.assign(to); })}>{GG}<span>{mode === "signup" ? (p.signupLabel ?? p.label) : p.label}</span></button>) : null;
   const form = <div className={`au-form${cfg.card ? " au-card" : ""}`}>
     {cfg.logoCenter && <div className="au-logoc"><Logo size={cfg.logoSize ?? 28} /></div>}
     <h1>{T}</h1>{S && <p className="au-sub">{S}</p>}
@@ -64,7 +58,6 @@ export function AuthScreen({ config, demo, to, signup = false, cfg }: { config: 
       {cfg.remember && needPw && <label className="au-rem"><input type="checkbox" /> Remember me</label>}
       {cfg.altButton ? <div className="au-two"><button type="button" className="au-alt" onClick={swap(mode === "signup" ? "signin" : "signup")}>{mode === "signup" ? "I have an account" : cfg.altButton}</button><button className="au-cta" disabled={busy}>{ctaLabel}</button></div> : <button className="au-cta" disabled={busy}>{ctaLabel}</button>}
     </form>}
-    {cfg.extraButtons && !showEmail && mode === "signin" && cfg.extraButtons.map(t => <button key={t} type="button" className="au-prov" disabled title={off}>{t}</button>)}
     {cfg.providersAfter && mode !== "reset" && cfg.providers.length > 0 && <div className="au-or"><span>OR</span></div>}
     {cfg.providersAfter && provs}
     {mode === "signin" && !cfg.forgotInline && <div className="au-links"><a href="#" onClick={swap("reset")}>Forgot password?</a></div>}
