@@ -139,3 +139,4 @@
 .ln-page:has(>.h1)>.qt .au{left:24px;bottom:24px}
 }
 @media(max-width:900px){.ln-page>*:nth-child(38){margin-top:85px!important}.ln-page>*:nth-child(42){margin-top:99.16px!important}}
+.ln-pm-foot{display:none}@media(max-width:900px){.ln-pm-foot{display:block}}

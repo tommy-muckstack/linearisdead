@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 
 type C = 0 | 1 | string;
 export function LnMobileCompare({ plans, groups }: { plans: string[]; groups: [string, [string, C, C, C, C][]][] }) {
@@ -10,6 +11,6 @@ export function LnMobileCompare({ plans, groups }: { plans: string[]; groups: [s
   return <><div className="mcmp">
     <label className="msel"><select value={p} onChange={(e) => setP(Number(e.target.value))} aria-label="Compare plan">{plans.map((n, i) => <option key={n} value={i}>{n}</option>)}</select><b>{plans[p]}</b><svg width="12" height="14" viewBox="0 0 12 14" aria-hidden><path d="M3 5l3-3 3 3M3 9l3 3 3-3" stroke="#8a8f98" strokeWidth="1.3" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg></label>
     {groups.map(([g, rows]) => <div key={g || "top"} className="mg">{g && <h4>{g}</h4>}{rows.map((r) => <div key={r[0]} className="mr"><span>{r[0]}</span><em>{cell(r[p + 1])}</em></div>)}</div>)}
-    <a className="mgo">{p === 3 ? "Contact sales" : "Get started"}</a>
-  </div><a className="mdoc">View docs</a></>;
+    <Link className="mgo" href={p === 3 ? "/contact" : "/app"}>{p === 3 ? "Contact us" : "Get started"}</Link>
+  </div><Link className="mdoc" href="/docs">View docs</Link></>;
 }

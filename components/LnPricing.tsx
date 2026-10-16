@@ -3,13 +3,15 @@ import pm from "./m/pricing390.json";
 import Link from "next/link";
 import { LnNav, LnCta, LnFoot } from "./LnShared";
 import { LnMobileCompare } from "./LnMobileCompare";
+import { SiteFoot } from "./LnSite";
+import { hrefForText } from "@/lib/sitemap";
 
 type C = 0 | 1 | string;
 const PLANS = [
   { n: "Free", p: "$0", b: "Free for everyone", f: ["Unlimited members", "2 teams", "250 issues", "Agent platform", "Agent"] },
   { n: "Basic", p: "$10 per user/month", b: "Billed yearly", f: ["All Free features +", "5 teams", "Unlimited issues", "Unlimited file uploads", "Admin roles"] },
-  { n: "Business", p: "$16 per user/month", b: "Billed yearly", f: ["All Basic features +", "Unlimited teams", "Private teams and guests", "Triage Intelligence", "Loops", "Code Intelligence", "Insights", "Asks", "Integrations for chat and support"] },
-  { n: "Enterprise", p: "Custom", b: "Annual billing only", f: ["All Business features +", "Invoice/PO billing", "SAML and SCIM", "Granular admin controls", "Enterprise-grade security", "Advanced org modeling", "Migration and onboarding support", "Priority support"] },
+  { n: "Business", p: "$16 per user/month", b: "Billed yearly", f: ["All Basic features +", "Unlimited teams", "Private teams and guests", "Triage Intelligence", "Loops", "Code Intelligence", "Insights", "Asks", "Zendesk and Intercom integrations"] },
+  { n: "Enterprise", p: "Custom", b: "Annual billing only", f: ["All Business features +", "Invoice/PO billing", "SAML and SCIM", "Granular admin controls", "Enterprise-grade security", "Advanced org modeling", "Migration & onboarding support", "Priority support", "Account management"] },
 ];
 const G: [string, [string, C, C, C, C][]][] = [
   ["", [["Members", "Unlimited", "Unlimited", "Unlimited", "Unlimited"], ["File upload", "10MB", "Unlimited", "Unlimited", "Unlimited"], ["Issues", "250 issues", "Unlimited", "Unlimited", "Unlimited"], ["Teams", "2 teams", "5 teams", "Unlimited", "Unlimited"]]],
@@ -38,21 +40,20 @@ export function LnPricing() {
     els.push(<i key={g + "v"} className="vl" style={{ top: first - 22, height: rows.length * 44 }} />);
     H = last + 80;
   });
-  return <><MeasuredPage data={pm as never} className="ln-pm" />
+  return <><MeasuredPage data={pm as never} className="ln-pm" hrefFor={hrefForText} /><div className="ln-pm-foot"><SiteFoot /></div>
   <div className="ln-page mp-desk" style={{ height: 6192 }}>
     <LnNav active="Pricing" />
     <h1 className="ph">Pricing</h1>
     {PLANS.map((p, i) => <div key={p.n} className="pl" style={{ left: 80 + i * 336 }}>
       <h2>{p.n}</h2><div className="pr">{p.p}</div><hr /><div className="bl">{i === 3 ? "" : <u><i /></u>}{p.b}</div><hr />
       <ul>{p.f.map((f) => <li key={f}><Ck />{f}</li>)}</ul>
-      <div className="bt">{i === 3 ? <a className="g">Contact sales</a> : <><Link href="/login" className={"g" + (i === 2 ? " h" : "")}>Get started</Link>{i === 2 && <a className="g s">Contact sales</a>}</>}</div></div>)}
-    <p className="tb">Trusted by more than <b>40,000</b> companies</p>
-    <div className="lgs" style={{ top: 1060 }}>{["OpenAI", "Vercel", "Salesforce", "Figma", "Cursor", "Coinbase", "ramp"].map((l) => <span key={l}>{l}</span>)}</div>
-    <a className="cs2">Customer stories →</a>
+      <div className="bt">{i === 3 ? <Link href="/contact" className="g">Contact us</Link> : <><Link href="/app" className={"g" + (i === 2 ? " h" : "")}>Get started</Link>{i === 2 && <Link href="/contact" className="g s">Contact us</Link>}</>}</div></div>)}
+    <p className="tb" data-testid="free-note"><b>LinearIsDead has no paid plans.</b> These are the tiers paid issue trackers sell; everything LinearIsDead ships is free for everyone.</p>
+    <Link href="/customers" className="cs2">How teams set it up →</Link>
     <LnMobileCompare plans={PLANS.map((p) => p.n)} groups={G} />
     {els}
-    <div className="fb" style={{ top: 4830 }}>{[0, 1, 2, 3].map((i) => <div key={i} style={{ left: 448 + i * 224 }}>{i === 3 ? <a>Contact sales</a> : <><a className={i === 2 ? "h" : ""}>Get started</a>{i === 2 && <small>or <u>contact sales</u></small>}</>}</div>)}</div>
-    <p className="ft2">** Requires AI credits. <a>View docs ↗</a></p>
+    <div className="fb" style={{ top: 4830 }}>{[0, 1, 2, 3].map((i) => <div key={i} style={{ left: 448 + i * 224 }}>{i === 3 ? <Link href="/contact">Contact us</Link> : <><Link href="/app" className={i === 2 ? "h" : ""}>Get started</Link>{i === 2 && <small>or <Link href="/contact"><u>contact us</u></Link></small>}</>}</div>)}</div>
+    <p className="ft2">Features LinearIsDead ships are listed in the <Link href="/docs">docs</Link>.</p>
     <LnCta top={5245} />
     <LnFoot top={5695} />
   </div></>;
