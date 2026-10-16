@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BP } from "@/lib/basepath";
 import { useLocal } from "@/lib/useLocal";
 import { Logo } from "@/components/Logo";
@@ -17,14 +17,16 @@ import { IssuePane, type Field } from "./IssuePane";
 import { CreateModal } from "./CreateModal";
 import { AppNotFound, InboxView, InitiativesView, MyActivity, MyTabs, RoadmapView, TeamsView, TriageView } from "./Pages";
 import { Onboarding } from "./Onboarding";
+import { SETTINGS, SettingsView } from "./Settings";
+import type { FirebaseClientConfig } from "@/lib/isdead-auth/config";
 import { SHORTCUTS } from "@/lib/linear/shortcuts";
 
 type Overlay = null | { kind: "picker"; field: Field; targets: string[] } | { kind: "create"; initial?: IssueInput } | { kind: "palette" } | { kind: "help" } | { kind: "dup"; id: string };
 /** Routes under /app that render issue rows (j/k, filters, display options). */
 const LIST_KINDS = ["active", "backlog", "all", "issue", "project", "my", "triage"];
-const KNOWN = [...LIST_KINDS, "cycles", "projects", "inbox", "teams", "initiatives", "roadmap"];
+const KNOWN = [...LIST_KINDS, "cycles", "projects", "inbox", "teams", "initiatives", "roadmap", "settings"];
 
-export function Workspace({ uid, name, email, demo, guest = false, view }: { uid: string; name: string; email: string; demo: boolean; guest?: boolean; view: string[] }) {
+export function Workspace({ uid, name, email, demo, guest = false, view, firebase = null }: { uid: string; name: string; email: string; demo: boolean; guest?: boolean; view: string[]; firebase?: FirebaseClientConfig | null }) {
   const router = useRouter();
   const [stored, setStored, ready] = useLocal<WS | null>(uid, "ws", null);
   const [prefs, setPrefs] = useLocal<{ group: GroupBy; layout: "list" | "board" }>(uid, "prefs", { group: "status", layout: "list" });
@@ -36,10 +38,10 @@ export function Workspace({ uid, name, email, demo, guest = false, view }: { uid
 
   // first load: demo gets a believable workspace; everyone gets cycles
   // first visit: the demo gets a seeded workspace, a guest's work follows them into their account, everyone else is onboarded
-  const [onboard, setOnboard] = useState(false);
+  const [onboard, setOnboard] = useState(false); const deleted = useRef(false);
   useEffect(() => { if (!ready || stored) return;
     const adopted = !demo && !guest ? adoptGuestWorkspace(uid, me) : null;
-    if (adopted || demo) setStored(adopted ?? seedWorkspace(me)); else setOnboard(true); }, [ready, stored, demo, guest, uid, me, setStored]);
+    if (adopted || (demo && !deleted.current)) setStored(adopted ?? seedWorkspace(me)); else setOnboard(true); }, [ready, stored, demo, guest, uid, me, setStored]);
   useEffect(() => { if (guest) try { localStorage.setItem(LAST_GUEST, uid); } catch { /* storage off */ } }, [guest, uid]);
   useEffect(() => { if (stored) { const n = normalizeWorkspace(ensureCycles(stored)); if (n !== stored) setStored(n); } }, [stored, setStored]);
   const ws = stored;
@@ -49,7 +51,9 @@ export function Workspace({ uid, name, email, demo, guest = false, view }: { uid
   const undo = useCallback(() => { const p = history.current.pop(); if (p) { setStored(p); notify("Undone"); } }, [setStored, notify]);
 
   const [kind, arg] = [view[0] ?? "active", view[1]];
-  const known = KNOWN.includes(kind) && (kind !== "my" || !arg || ["created", "subscribed", "activity"].includes(arg)) && (kind !== "inbox" || !arg || arg === "unread");
+  const known = KNOWN.includes(kind) && (kind !== "my" || !arg || ["created", "subscribed", "activity"].includes(arg)) && (kind !== "inbox" || !arg || arg === "unread") && (kind !== "settings" || !arg || SETTINGS.some(x => x[1] === arg));
+  // bare /app opens the home view chosen in Settings › Preferences
+  useEffect(() => { if (!view.length && ws?.homeView && ws.homeView !== "active") router.replace(ws.homeView === "my" ? "/app/my" : "/app/inbox"); }, [view.length, ws?.homeView, router]);
   useEffect(() => { if (kind === "issue" && arg && ws) { const i = ws.issues.find(i => identifier(ws, i).toLowerCase() === arg.toLowerCase()); if (i) { setOpenId(i.id); setFocusId(i.id); } } }, [kind, arg, ws?.issues.length]);
 
   const base = useMemo<Issue[]>(() => {
@@ -93,7 +97,7 @@ export function Workspace({ uid, name, email, demo, guest = false, view }: { uid
       if (e.metaKey || e.ctrlKey) { if (e.key.toLowerCase() === "z") { e.preventDefault(); undo(); } else if (e.key === "Backspace" || e.key === "Delete") { e.preventDefault(); remove(); } return; }
       if (e.altKey) return;
       const k = e.key;
-      if (gPending.current) { gPending.current = false; clearTimeout(gTimer.current); const to: Record<string, string> = { i: "/app", m: "/app/my", b: "/app/backlog", c: "/app/cycles", p: "/app/projects", a: "/app/all" }; const d = to[k.toLowerCase()]; if (d) { e.preventDefault(); go(d); } return; }
+      if (gPending.current) { gPending.current = false; clearTimeout(gTimer.current); const to: Record<string, string> = { i: "/app/active", s: "/app/settings", m: "/app/my", b: "/app/backlog", c: "/app/cycles", p: "/app/projects", a: "/app/all" }; const d = to[k.toLowerCase()]; if (d) { e.preventDefault(); go(d); } return; }
       if (k === "g") { gPending.current = true; clearTimeout(gTimer.current); gTimer.current = setTimeout(() => (gPending.current = false), 1200); return; }
       if (kind === "triage" && focusId && ["1", "2", "3"].includes(k)) { e.preventDefault(); if (k === "1") triageAct("accept", focusId); else if (k === "2") triageAct("decline", focusId); else setOverlay({ kind: "dup", id: focusId }); return; }
       const map: Record<string, Field> = { s: "status", p: "priority", a: "assignee", l: "labels", r: "project", u: "cycle", e: "estimate" };
@@ -142,7 +146,7 @@ export function Workspace({ uid, name, email, demo, guest = false, view }: { uid
   const paletteItems: Opt[] = [
     { id: "cmd:create", label: "Create issue", hint: "C" }, { id: "cmd:status", label: "Change status…", hint: "S" }, { id: "cmd:priority", label: "Set priority…", hint: "P" }, { id: "cmd:assign", label: "Assign to…", hint: "A" }, { id: "cmd:label", label: "Add label…", hint: "L" },
     { id: "nav:/app/inbox", label: "Go to Inbox" }, { id: "nav:/app/triage", label: "Go to Triage" }, { id: "nav:/app/initiatives", label: "Go to Initiatives" }, { id: "nav:/app/roadmap", label: "Go to Roadmap" }, { id: "nav:/app/teams", label: "Go to Teams" },
-    { id: "nav:/app", label: "Go to Active issues", hint: "G I" }, { id: "nav:/app/my", label: "Go to My issues", hint: "G M" }, { id: "nav:/app/backlog", label: "Go to Backlog", hint: "G B" }, { id: "nav:/app/all", label: "Go to All issues", hint: "G A" }, { id: "nav:/app/cycles", label: "Go to Cycles", hint: "G C" }, { id: "nav:/app/projects", label: "Go to Projects", hint: "G P" },
+    { id: "nav:/app/active", label: "Go to Active issues", hint: "G I" }, { id: "nav:/app/settings", label: "Open settings", hint: "G S" }, { id: "nav:/app/my", label: "Go to My issues", hint: "G M" }, { id: "nav:/app/backlog", label: "Go to Backlog", hint: "G B" }, { id: "nav:/app/all", label: "Go to All issues", hint: "G A" }, { id: "nav:/app/cycles", label: "Go to Cycles", hint: "G C" }, { id: "nav:/app/projects", label: "Go to Projects", hint: "G P" },
     { id: "cmd:view", label: `Switch to ${prefs.layout === "list" ? "board" : "list"} layout`, hint: "V" }, { id: "cmd:undo", label: "Undo last change", hint: "⌘Z" }, { id: "cmd:help", label: "Keyboard shortcuts", hint: "?" },
     ...ws.issues.slice(0, 200).map(i => ({ id: "iss:" + i.id, label: `${identifier(ws, i)} ${i.title}`, icon: <StatusIcon status={i.status} /> })),
   ];
@@ -154,6 +158,17 @@ export function Workspace({ uid, name, email, demo, guest = false, view }: { uid
   };
 
   const nav = (href: string, label: string, active: boolean, count?: number, key?: string) => <Link href={href} className={"lin-nav__item" + (active ? " on" : "")} onClick={() => { setOpenId(null); setSelected(new Set()); }}><span>{label}</span>{count != null && <em>{count}</em>}{key && <kbd className="lin-kbd">{key}</kbd>}</Link>;
+
+  if (kind === "settings") return <div className="lin" data-testid="linear-app">
+    <aside className="lin-side lin-side--settings">
+      <Link href="/app" className="lin-back" data-testid="back-to-app">‹ Back to app</Link>
+      <nav className="lin-nav" aria-label="Settings">{["Account", "Workspace", "Teams"].map(g => <div key={g}><div className="lin-nav__label">{g}</div>
+        {SETTINGS.filter(x => x[0] === g).map(([, k, l]) => <Fragment key={k}>{nav(`/app/settings/${k}`, g === "Teams" ? ws.teamName : l, (arg || "preferences") === k)}</Fragment>)}</div>)}</nav>
+    </aside>
+    <main className="lin-main"><header className="lin-main__hd"><h1>Settings</h1></header>
+      <div className="lin-scroll">{known ? <SettingsView key={arg} ws={ws} section={arg ?? ""} commit={commit} replace={w => { history.current = []; if (!w) { deleted.current = true; setOnboard(true); router.push("/app"); } setStored(w); }} email={email} guest={guest} demo={demo} firebase={firebase} /> : <AppNotFound />}</div></main>
+    {toast && <div className="lin-toast" role="status" data-testid="toast">{toast}{history.current.length > 0 && <button onClick={undo}>Undo</button>}</div>}
+  </div>;
 
   return <div className="lin" data-testid="linear-app">
     <aside className="lin-side">
@@ -168,13 +183,13 @@ export function Workspace({ uid, name, email, demo, guest = false, view }: { uid
         <div className="lin-nav__label">Your teams</div>
         <div className="lin-nav__team">{ws.teamName}</div>
         {ws.triageEnabled !== false && nav("/app/triage", "Triage", kind === "triage", counts.triage || undefined)}
-        {nav("/app", "Active", kind === "active", counts.active, "G I")}{nav("/app/backlog", "Backlog", kind === "backlog", counts.backlog, "G B")}{nav("/app/all", "All issues", kind === "all" || kind === "issue")}
+        {nav("/app/active", "Active", kind === "active", counts.active, "G I")}{nav("/app/backlog", "Backlog", kind === "backlog", counts.backlog, "G B")}{nav("/app/all", "All issues", kind === "all" || kind === "issue")}
         {nav("/app/cycles", "Cycles", kind === "cycles", undefined, "G C")}
       </nav>
       <div className="lin-side__foot">{guest
         ? <><a className="lin-guest" href={`${BP}/login?callbackUrl=${encodeURIComponent(BP + "/app")}`} data-testid="guest-signin"><b>Guest</b> · Sign in to keep your work</a>
-          <button className="iconbtn" onClick={() => setOverlay({ kind: "help" })} aria-label="Keyboard shortcuts">?</button></>
-        : <><span className="ids-muted" style={{ fontSize: 12 }}>{demo ? "Demo account" : email}</span>
+          <Link className="iconbtn" href="/app/settings" aria-label="Settings" data-testid="settings-link">⚙</Link><button className="iconbtn" onClick={() => setOverlay({ kind: "help" })} aria-label="Keyboard shortcuts">?</button></>
+        : <><Link className="iconbtn" href="/app/settings" aria-label="Settings" data-testid="settings-link">⚙</Link><span className="ids-muted" style={{ fontSize: 12 }}>{demo ? "Demo account" : email}</span>
           <button className="iconbtn" onClick={() => setOverlay({ kind: "help" })} aria-label="Keyboard shortcuts">?</button>
           <form method="post" action={`${BP}/api/session/logout`} style={{ margin: 0 }}><button className="iconbtn">Sign out</button></form></>}</div>
     </aside>

@@ -44,6 +44,9 @@ export type Workspace = {
   triageEnabled?: boolean; initiatives?: Initiative[];
   /** Inbox: notification ids the user has read or removed. */
   inboxRead?: string[]; inboxHidden?: string[];
+  /** Settings › Preferences / Notifications. */
+  homeView?: "active" | "my" | "inbox"; autoAssign?: boolean;
+  notify?: { status: boolean; assignee: boolean; comments: boolean; other: boolean };
 };
 
 const DAY = 86_400_000;
@@ -298,10 +301,12 @@ export type Notification = { id: string; issueId: string; at: string; by: string
 export const isSubscribed = (ws: Workspace, i: Issue) => i.assignee === ws.me || i.creator === ws.me || i.comments.some(c => c.by === ws.me);
 export function inbox(ws: Workspace): Notification[] {
   const read = new Set(ws.inboxRead ?? []), hidden = new Set(ws.inboxHidden ?? []); const out: Notification[] = [];
+  const n = { status: true, assignee: true, comments: true, other: true, ...ws.notify };
+  const want = (k: ActivityKind) => k === "status" ? n.status : k === "assignee" ? n.assignee : n.other;
   for (const i of ws.issues) {
     if (!isSubscribed(ws, i)) continue;
-    for (const a of i.history ?? []) if (a.by && a.by !== ws.me) out.push({ id: a.id, issueId: i.id, at: a.at, by: a.by, text: activityText(a), read: read.has(a.id) });
-    for (const c of i.comments) if (c.by !== ws.me) out.push({ id: c.id, issueId: i.id, at: c.at, by: c.by, text: `commented: ${c.body.slice(0, 140)}`, read: read.has(c.id) });
+    for (const a of i.history ?? []) if (a.by && a.by !== ws.me && want(a.kind)) out.push({ id: a.id, issueId: i.id, at: a.at, by: a.by, text: activityText(a), read: read.has(a.id) });
+    if (n.comments) for (const c of i.comments) if (c.by !== ws.me) out.push({ id: c.id, issueId: i.id, at: c.at, by: c.by, text: `commented: ${c.body.slice(0, 140)}`, read: read.has(c.id) });
   }
   return out.filter(n => !hidden.has(n.id)).sort((a, b) => b.at.localeCompare(a.at));
 }
@@ -332,3 +337,32 @@ export const updateProject = (ws: Workspace, id: string, patch: Partial<Omit<Pro
 // ---- workspace identity ----
 export const slugify = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
 export const teamKeyFrom = (name: string) => (name.replace(/[^A-Za-z]/g, "").slice(0, 3) || "ENG").toUpperCase();
+
+// ---- settings: members, labels, import/export ----
+export function addMember(ws: Workspace, name: string): Workspace { const n = name.trim(); return !n || ws.members.includes(n) ? ws : { ...ws, members: [...ws.members, n] }; }
+/** Removing a member unassigns their issues (and project leads); you can't remove yourself. */
+export function removeMember(ws: Workspace, name: string): Workspace {
+  if (name === ws.me) return ws;
+  return { ...ws, members: ws.members.filter(m => m !== name), issues: ws.issues.map(i => (i.assignee === name ? { ...i, assignee: null } : i)), projects: ws.projects.map(p => (p.lead === name ? { ...p, lead: null } : p)) };
+}
+export function renameLabel(ws: Workspace, from: string, to: string): Workspace {
+  const n = to.trim(); if (!n || n === from || ws.labels.some(l => l.toLowerCase() === n.toLowerCase() && l !== from)) return ws;
+  const r = (ls: string[]) => ls.map(l => (l === from ? n : l));
+  return { ...ws, labels: r(ws.labels), issues: ws.issues.map(i => (i.labels.includes(from) ? { ...i, labels: r(i.labels) } : i)) };
+}
+export const deleteLabel = (ws: Workspace, label: string): Workspace => ({ ...ws, labels: ws.labels.filter(l => l !== label), issues: ws.issues.map(i => (i.labels.includes(label) ? { ...i, labels: i.labels.filter(l => l !== label) } : i)) });
+export const addLabel = (ws: Workspace, label: string): Workspace => { const n = label.trim(); return !n || ws.labels.some(l => l.toLowerCase() === n.toLowerCase()) ? ws : { ...ws, labels: [...ws.labels, n] }; };
+const csvCell = (v: unknown) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+export function issuesCsv(ws: Workspace): string {
+  const head = ["ID", "Title", "Status", "Priority", "Assignee", "Labels", "Project", "Cycle", "Estimate", "Due date", "Parent", "Created", "Completed", "Description"];
+  const rows = [...ws.issues].sort((a, b) => a.number - b.number).map(i => [identifier(ws, i), i.title, statusInfo(i.status).label, priorityLabel(i.priority), i.assignee ?? "", i.labels.join("; "), ws.projects.find(p => p.id === i.projectId)?.name ?? "",
+    ws.cycles.find(c => c.id === i.cycleId)?.number ?? "", i.estimate ?? "", i.dueDate ?? "", (() => { const p = ws.issues.find(x => x.id === i.parentId); return p ? identifier(ws, p) : ""; })(), i.createdAt, i.completedAt ?? "", i.description]);
+  return [head, ...rows].map(r => r.map(csvCell).join(",")).join("\n") + "\n";
+}
+/** Validate a JSON backup before it replaces the workspace. Throws a readable error. */
+export function parseBackup(text: string): Workspace {
+  let w: Workspace; try { w = JSON.parse(text); } catch { throw new Error("That file isn't valid JSON."); }
+  const ok = w && typeof w === "object" && typeof w.teamKey === "string" && typeof w.me === "string" && Array.isArray(w.issues) && Array.isArray(w.projects) && Array.isArray(w.cycles) && Array.isArray(w.members) && Array.isArray(w.labels);
+  if (!ok) throw new Error("That file isn't a LinearIsDead workspace export.");
+  return normalizeWorkspace(w);
+}
