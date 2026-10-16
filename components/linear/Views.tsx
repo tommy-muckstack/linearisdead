@@ -1,38 +1,41 @@
 "use client";
 import { useState } from "react";
-import { burnup, cycleIssues, isOverdue, subProgress, cycleStats, identifier, projectStats, groupIssues, type Cycle, type Group, type Issue, type Project, type Status, type Workspace, STATUSES, currentCycle } from "@/lib/linear/model";
+import { burnup, cycleIssues, isOverdue, subProgress, cycleStats, identifier, projectStats, groupIssues, type Cycle, type Group, type Issue, type Project, type Status, type Workspace, type OrderBy, STATUSES, currentCycle } from "@/lib/linear/model";
 import { Avatar, PriorityIcon, StatusIcon, fmtDate, fmtDay } from "./ui";
 
-export type RowProps = { ws: Workspace; focusId: string | null; selected: Set<string>; onFocus: (id: string) => void; onSelect: (id: string) => void; onOpen: (id: string) => void };
+export type RowProps = { ws: Workspace; focusId: string | null; selected: Set<string>; onFocus: (id: string) => void; onSelect: (id: string) => void; onOpen: (id: string) => void; show?: Set<string> };
+const ALL = new Set(["id", "status", "assignee", "priority", "project", "due", "cycle", "estimate", "labels", "subs", "created", "updated"]);
 
-export function IssueRow({ ws, issue, focusId, selected, onFocus, onSelect, onOpen }: RowProps & { issue: Issue }) {
-  const project = ws.projects.find(p => p.id === issue.projectId);
+export function IssueRow({ ws, issue, focusId, selected, onFocus, onSelect, onOpen, show = ALL }: RowProps & { issue: Issue }) {
+  const project = ws.projects.find(p => p.id === issue.projectId); const cycle = ws.cycles.find(c => c.id === issue.cycleId);
   return <div className={"lin-row" + (focusId === issue.id ? " is-focus" : "") + (selected.has(issue.id) ? " is-sel" : "")} data-testid="issue-row" data-id={issue.id} data-ident={identifier(ws, issue)} aria-selected={focusId === issue.id}
     onMouseEnter={() => onFocus(issue.id)} onClick={() => onOpen(issue.id)}>
     <button className="lin-row__box" aria-label={`Select ${identifier(ws, issue)}`} aria-pressed={selected.has(issue.id)} onClick={e => { e.stopPropagation(); onSelect(issue.id); }}>{selected.has(issue.id) ? "✓" : ""}</button>
-    <PriorityIcon priority={issue.priority} /><span className="lin-row__id">{identifier(ws, issue)}</span><StatusIcon status={issue.status} />
+    {show.has("priority") && <PriorityIcon priority={issue.priority} />}{show.has("id") && <span className="lin-row__id">{identifier(ws, issue)}</span>}{show.has("status") && <StatusIcon status={issue.status} />}
     <span className="lin-row__title">{issue.title}</span>
-    {issue.labels.map(l => <span key={l} className="lin-tag">{l}</span>)}
-    {project && <span className="lin-row__proj">{project.name}</span>}
-    {(() => { const sp = subProgress(ws, issue.id); return sp.total ? <span className="lin-row__subs" title="Sub-issues done">◔ {sp.done}/{sp.total}</span> : null; })()}
-    {issue.dueDate && <span className={"lin-row__due" + (isOverdue(issue) ? " lin-overdue" : "")} title="Due date">◷ {fmtDay(issue.dueDate)}</span>}
-    {issue.estimate != null && <span className="lin-row__est">{issue.estimate}</span>}
-    <span className="lin-row__date">{fmtDate(issue.createdAt)}</span><Avatar name={issue.assignee} />
+    {show.has("labels") && issue.labels.map(l => <span key={l} className="lin-tag">{l}</span>)}
+    {show.has("project") && project && <span className="lin-row__proj">{project.name}</span>}
+    {show.has("cycle") && cycle && <span className="lin-row__proj" data-prop="cycle">Cycle {cycle.number}</span>}
+    {show.has("subs") && (() => { const sp = subProgress(ws, issue.id); return sp.total ? <span className="lin-row__subs" title="Sub-issues done">◔ {sp.done}/{sp.total}</span> : null; })()}
+    {show.has("due") && issue.dueDate && <span className={"lin-row__due" + (isOverdue(issue) ? " lin-overdue" : "")} title="Due date">◷ {fmtDay(issue.dueDate)}</span>}
+    {show.has("estimate") && issue.estimate != null && <span className="lin-row__est">{issue.estimate}</span>}
+    {show.has("created") && <span className="lin-row__date" title="Created">{fmtDate(issue.createdAt)}</span>}{show.has("updated") && <span className="lin-row__date" data-prop="updated" title="Updated">{fmtDate(issue.updatedAt)}</span>}{show.has("assignee") && <Avatar name={issue.assignee} />}
   </div>;
 }
 
 export function IssueList({ groups, rp, onCreateIn }: { groups: Group[]; rp: RowProps; onCreateIn: (status?: string) => void }) {
   const total = groups.reduce((n, g) => n + g.issues.length, 0);
-  if (!total) return <div className="lin-emptystate" data-testid="empty"><h3>No issues here</h3><p className="ids-muted">Press <kbd className="lin-kbd">C</kbd> to create one, or loosen the filter.</p></div>;
+  if (!total && !groups.length) return <div className="lin-emptystate" data-testid="empty"><h3>No issues here</h3><p className="ids-muted">Press <kbd className="lin-kbd">C</kbd> to create one, or loosen the filter.</p></div>;
   return <div data-testid="issue-list">{groups.map(g => <section key={g.key} className="lin-group" data-group={g.key}>
     <header className="lin-group__hd">{STATUSES.some(s => s.id === g.key) && <StatusIcon status={g.key as Status} />}<b>{g.label}</b><span className="ids-muted">{g.issues.length}</span>
       <button className="lin-plus" aria-label={`Add issue to ${g.label}`} onClick={() => onCreateIn(g.key)}>+</button></header>
-    {g.issues.map(i => <IssueRow key={i.id} issue={i} {...rp} />)}</section>)}</div>;
+    {g.sub ? g.sub.map(sg => <section key={sg.key} className="lin-subgroup" data-subgroup={sg.key}><header className="lin-subgroup__hd"><b>{sg.label}</b><span className="ids-muted">{sg.issues.length}</span></header>{sg.issues.map(i => <IssueRow key={i.id} issue={i} {...rp} />)}</section>)
+      : g.issues.length ? g.issues.map(i => <IssueRow key={i.id} issue={i} {...rp} />) : <p className="lin-group__empty ids-muted">No issues</p>}</section>)}</div>;
 }
 
-export function Board({ ws, issues, rp, onMove, onCreateIn }: { ws: Workspace; issues: Issue[]; rp: RowProps; onMove: (id: string, s: Status) => void; onCreateIn: (s: string) => void }) {
+export function Board({ ws, issues, rp, order = "priority", onMove, onCreateIn }: { ws: Workspace; issues: Issue[]; rp: RowProps; order?: OrderBy; onMove: (id: string, s: Status) => void; onCreateIn: (s: string) => void }) {
   const [over, setOver] = useState<string | null>(null);
-  const groups = groupIssues(ws, issues, "status", true);
+  const groups = groupIssues(ws, issues, "status", true, order);
   return <div className="lin-board" data-testid="board">{groups.map(g => <section key={g.key} className={"lin-col" + (over === g.key ? " is-over" : "")} data-col={g.key}
     onDragOver={e => { e.preventDefault(); setOver(g.key); }} onDragLeave={() => setOver(null)} onDrop={e => { e.preventDefault(); setOver(null); const id = e.dataTransfer.getData("text/plain"); if (id) onMove(id, g.key as Status); }}>
     <header className="lin-group__hd"><StatusIcon status={g.key as Status} /><b>{g.label}</b><span className="ids-muted">{g.issues.length}</span><button className="lin-plus" aria-label={`Add issue to ${g.label}`} onClick={() => onCreateIn(g.key)}>+</button></header>
