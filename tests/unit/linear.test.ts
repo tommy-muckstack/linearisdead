@@ -49,7 +49,7 @@ describe("filters", () => {
   });
   it("text matches identifiers and titles", () => { expect(filterIssues(ws, "ENG-1 ", ws.issues, NOW).length).toBeGreaterThan(0); expect(filterIssues(ws, "invoice", ws.issues, NOW)[0].title).toMatch(/Invoice/); });
   it("groups by status in board order and sorts by priority", () => {
-    const g = groupIssues(ws, ws.issues, "status"); expect(g.map(x => x.key).slice(0, 3)).toEqual(["backlog", "todo", "in_progress"]);
+    const g = groupIssues(ws, ws.issues, "status"); expect(g.map(x => x.key).slice(0, 3)).toEqual(["triage", "backlog", "todo"]);
     const todo = g.find(x => x.key === "todo")!.issues; expect(todo[0].priority).toBeLessThanOrEqual(todo[todo.length - 1].priority || 9);
   });
 });
