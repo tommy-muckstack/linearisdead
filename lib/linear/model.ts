@@ -191,6 +191,14 @@ export function createProject(ws: Workspace, name: string, summary = ""): { ws: 
 }
 export const setProjectStatus = (ws: Workspace, id: string, status: Project["status"]): Workspace => ({ ...ws, projects: ws.projects.map(p => p.id === id ? { ...p, status } : p) });
 
+/** Rename a member everywhere they appear (assignees, comments, project leads, `me`). */
+export function renameMember(ws: Workspace, from: string, to: string): Workspace {
+  const n = to.trim(); if (!n || n === from || ws.members.includes(n)) return ws;
+  const r = (x: string | null) => (x === from ? n : x);
+  return { ...ws, me: ws.me === from ? n : ws.me, members: ws.members.map(m => (m === from ? n : m)),
+    issues: ws.issues.map(i => ({ ...i, assignee: r(i.assignee), comments: i.comments.map(c => ({ ...c, by: r(c.by)! })) })),
+    projects: ws.projects.map(p => ({ ...p, lead: r(p.lead) })) };
+}
 export function emptyWorkspace(me = "You", teamKey = "ENG", teamName = "Engineering"): Workspace {
   return { teamKey, teamName, me, members: [me], labels: ["Bug", "Feature", "Improvement"], nextNumber: 1, nextCycleNumber: 1, cycleDays: 14, issues: [], projects: [], cycles: [] };
 }
