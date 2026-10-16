@@ -1,9 +1,9 @@
 import { MeasuredPage } from "./m/MeasuredPage";
 import pm from "./m/pricing390.json";
 import Link from "next/link";
-import { LnNav, LnCta, LnFoot } from "./LnShared";
+import { LnCta } from "./LnShared";
 import { LnMobileCompare } from "./LnMobileCompare";
-import { SiteFoot } from "./LnSite";
+import { SiteFoot, SiteNav } from "./LnSite";
 import { hrefForText } from "@/lib/sitemap";
 
 type C = 0 | 1 | string;
@@ -40,9 +40,9 @@ export function LnPricing() {
     els.push(<i key={g + "v"} className="vl" style={{ top: first - 22, height: rows.length * 44 }} />);
     H = last + 80;
   });
-  return <><MeasuredPage data={pm as never} className="ln-pm" hrefFor={hrefForText} /><div className="ln-pm-foot"><SiteFoot /></div>
-  <div className="ln-page mp-desk" style={{ height: 6192 }}>
-    <LnNav active="Pricing" />
+  return <><div className="ln-pm-nav"><SiteNav active="Pricing" /></div><MeasuredPage data={pm as never} className="ln-pm" hrefFor={hrefForText} skip={i => i.y < 64 && i.y > 1 && i.h < 64} /><div className="ln-pm-foot"><SiteFoot /></div>
+  <div className="ln-wrap mp-desk"><div className="ln-page" style={{ height: 5695 }}>
+    <SiteNav active="Pricing" />
     <h1 className="ph">Pricing</h1>
     {PLANS.map((p, i) => <div key={p.n} className="pl" style={{ left: 80 + i * 336 }}>
       <h2>{p.n}</h2><div className="pr">{p.p}</div><hr /><div className="bl">{i === 3 ? "" : <u><i /></u>}{p.b}</div><hr />
@@ -55,6 +55,5 @@ export function LnPricing() {
     <div className="fb" style={{ top: 4830 }}>{[0, 1, 2, 3].map((i) => <div key={i} style={{ left: 448 + i * 224 }}>{i === 3 ? <Link href="/contact">Contact us</Link> : <><Link href="/app" className={i === 2 ? "h" : ""}>Get started</Link>{i === 2 && <small>or <Link href="/contact"><u>contact us</u></Link></small>}</>}</div>)}</div>
     <p className="ft2">Features LinearIsDead ships are listed in the <Link href="/docs">docs</Link>.</p>
     <LnCta top={5245} />
-    <LnFoot top={5695} />
-  </div></>;
+  </div><SiteFoot /></div></>;
 }
