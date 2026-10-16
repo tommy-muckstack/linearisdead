@@ -16,7 +16,7 @@ export function LnHome() {
     <p className="hs">Purpose-built for planning and building products. Designed for the AI era.</p>
     <span className="nw"><b>New</b><a>Loops →</a></span>
     <div className="frame" style={{ top: 527 }}><div className="app">
-      <div className="sb"><div className="ws"><LnMark s={14} /> Linear <u>⌄</u></div>
+      <div className="sb"><div className="ws"><LnMark s={14} /> LinearIsDead <u>⌄</u></div>
         <a>Pulse</a><a>Inbox</a><a>My issues</a><a>Reviews</a><h6>Workspace ▾</h6><a>Initiatives</a><a>Projects</a><a>More</a><h6>Favorites ▾</h6><a className="on">Faster app launch</a><a>Agent tasks</a><a>Agent insights</a><a>UI refresh</a></div>
       <div className="mn"><div className="hdr"><span>◔ DRV-8852 &nbsp;Faster app launch ★</span><em>1 / 64</em></div>
         <h3>Faster app launch</h3><p>Render UI before <code>vehicle_state</code> sync when minimal required state is present, instead of blocking on full refresh during startup.</p>
