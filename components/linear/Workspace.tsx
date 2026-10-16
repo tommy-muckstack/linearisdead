@@ -14,9 +14,9 @@ import { Avatar, Kbd, Picker, PriorityIcon, StatusIcon, type Opt } from "./ui";
 import { Board, CyclesView, IssueList, ProjectsView, type RowProps } from "./Views";
 import { IssuePane, type Field } from "./IssuePane";
 import { CreateModal } from "./CreateModal";
+import { SHORTCUTS } from "@/lib/linear/shortcuts";
 
 type Overlay = null | { kind: "picker"; field: Field; targets: string[] } | { kind: "create"; initial?: IssueInput } | { kind: "palette" } | { kind: "help" };
-const SHORTCUTS: [string, string][] = [["C", "Create issue"], ["J / K", "Move down / up"], ["Enter", "Open issue"], ["X", "Select issue"], ["S", "Set status"], ["P", "Set priority"], ["A", "Assign"], ["L", "Labels"], ["R", "Project"], ["U", "Cycle"], ["E", "Estimate"], ["V", "Toggle list / board"], ["/", "Filter"], ["G then I", "Go to active issues"], ["G then M", "Go to my issues"], ["G then B", "Go to backlog"], ["G then C", "Go to cycles"], ["G then P", "Go to projects"], ["⌘K", "Command menu"], ["⌘Z", "Undo"], ["⌘⌫", "Delete issue"], ["Esc", "Close / clear"], ["?", "This help"]];
 
 export function Workspace({ uid, name, email, demo, guest = false, view }: { uid: string; name: string; email: string; demo: boolean; guest?: boolean; view: string[] }) {
   const router = useRouter();
