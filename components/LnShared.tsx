@@ -8,7 +8,7 @@ export function LnNav({ active }: { active?: string }) {
   const L = ["Product", "Resources", "Customers", "Pricing", "Now", "Contact"];
   return <header className="ln-nav"><Link href="/" className="lg"><LnMark s={20} /><b>LinearIsDead</b></Link>
     <nav>{L.map((l) => l === "Pricing" ? <Link key={l} href="/pricing" className={active === l ? "on" : ""}>{l}</Link> : <a key={l} className={active === l ? "on" : ""}>{l}</a>)}</nav>
-    <Link href="/login" className="li">Log in</Link><Link href="/login" className="su">Sign up</Link></header>;
+    <Link href="/login" className="li">Log in</Link><Link href="/signup" className="su">Sign up</Link></header>;
 }
 const FC: [string, string[]][] = [["Product", ["Intake", "Plan", "AI", "Build", "Pricing", "Security"]], ["Features", ["Asks", "Agents", "Coding Sessions", "Customer Requests", "Insights", "Mobile", "Integrations", "Changelog"]], ["Company", ["About", "Customers", "Careers", "Now", "Method", "Quality", "Brand"]], ["Resources", ["Switch", "Download", "Documentation", "Developers", "Status", "Enterprise", "Startups"]], ["Connect", ["Contact us", "Community", "X (Twitter)", "GitHub", "YouTube"]]];
 export function LnCta({ top }: { top: number }) {

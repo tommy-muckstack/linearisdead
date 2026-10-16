@@ -81,3 +81,4 @@
 .lin-body.has-pane{grid-template-columns:1fr}.lin-pane{position:fixed;inset:0;z-index:50}.lin-cycles{grid-template-columns:1fr}.lin-cycles__list{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--ids-color-border)}.lin-cyc{min-width:200px}
 .lin-row__proj,.lin-row__date,.lin-row__est{display:none}.lin-row{padding:0 12px;gap:8px}.lin-main__hd{flex-wrap:wrap;height:auto;padding:8px 12px}.lin-filter{flex:1 1 100%;max-width:none;order:5}.lin-seg{margin-left:auto}
 .lin-stats{grid-template-columns:repeat(2,1fr)}.lin-ptable__hd{display:none}.lin-prow{grid-template-columns:1fr 1fr}.lin-board{padding:8px}.lin-help dl{grid-template-columns:1fr}.lin-overlay{padding-top:8vh}}
+.lin-guest{flex:1;font-size:12px;color:var(--ids-color-text-muted);text-decoration:none;line-height:1.3}.lin-guest b{color:var(--ids-color-text)}.lin-guest:hover{color:var(--ids-color-text)}
