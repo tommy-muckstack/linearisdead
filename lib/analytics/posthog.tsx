@@ -22,7 +22,7 @@ function skipped() {
 // callback URLs) and the page title is dropped. Path ids (/app/issue/<id>, /app/project/<id>, /app/view/<id>) are random
 // local ids that reveal nothing, so PRIVATE_PATHS is empty; workspace URL slugs (/<urlKey>) redirect server-side before any page loads.
 const PRIVATE_PATHS: RegExp[] = [];
-const URL_PROPS = ["$current_url", "$referrer", "$initial_current_url", "$initial_referrer", "$prev_pageview_pathname", "$pathname"];
+const URL_PROPS = ["$current_url", "$referrer", "$initial_current_url", "$initial_referrer", "$prev_pageview_pathname", "$pathname", "$initial_pathname", "$session_entry_url", "$session_entry_pathname"];
 const cleanUrl = (v: unknown) => { if (typeof v !== "string" || !v || v === "$direct") return v; let u = v.split(/[?#]/)[0]!; for (const re of PRIVATE_PATHS) u = u.replace(re, "$1:id"); return u; };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function scrub(e: any) { if (!e?.properties) return e; for (const k of URL_PROPS) if (k in e.properties) e.properties[k] = cleanUrl(e.properties[k]); delete e.properties.title; if (e.$set) for (const k of URL_PROPS) if (k in e.$set) e.$set[k] = cleanUrl(e.$set[k]); if (e.$set_once) for (const k of URL_PROPS) if (k in e.$set_once) e.$set_once[k] = cleanUrl(e.$set_once[k]); return e; }
