@@ -1,4 +1,4 @@
-import { asMember, createIssue, createProject, emptyWorkspace, ensureCycles, currentCycle, updateIssue, type Workspace } from "./model";
+import { addComment, asMember, createIssue, createProject, emptyWorkspace, ensureCycles, currentCycle, updateIssue, type Workspace } from "./model";
 /** Teammates in the demo workspace are roles, never real people. */
 export const DEMO_TEAM = ["Design lead", "Backend engineer", "Mobile engineer"];
 /** A believable first workspace so the demo isn't empty. Built through the same functions the UI uses. */
@@ -43,5 +43,14 @@ export function seedWorkspace(me: string, now = new Date()): Workspace {
   ws = updateIssue(ws, byTitle("Invoice PDF shows the wrong tax line").id, { dueDate: day(2) }, t(1));
   ws = updateIssue(ws, byTitle("Usage meter in the billing settings").id, { dueDate: day(9) }, t(1));
   ws = asMember(ws, DEMO_TEAM[1], w => updateIssue(w, byTitle("Sign-up form drops the plus sign in emails").id, { priority: 1, dueDate: day(-1) }, t(1)));
+  // triage, initiatives, roadmap dates, teammates talking on your issues (fills the Inbox)
+  for (const [title, who, ago] of [["Export button missing on mobile", DEMO_TEAM[2], 1], ["Crash when pasting a long title", DEMO_TEAM[1], 0]] as const)
+    ws = asMember(ws, who, w => createIssue(w, { title, status: "triage", labels: ["Bug"] }, t(ago)).ws);
+  ws = { ...ws, workspaceName: "Demo workspace", urlKey: "demo", triageEnabled: true,
+    projects: ws.projects.map((p, n) => ({ ...p, startDate: day(n ? 3 : -20), targetDate: day(n ? 60 : 25) })),
+    initiatives: [{ id: "ini_demo", name: "Self-serve growth", description: "Make it possible to sign up, start and pay without talking to us.", status: "active", owner: me, projectIds: ws.projects.map(p => p.id), targetDate: day(75) }] };
+  const mine = byTitle("Empty state for the issues list");
+  ws = asMember(ws, DEMO_TEAM[0], w => addComment(w, mine.id, "Mocks are in the design file, the illustration is final.", t(0.2)));
+  ws = asMember(ws, DEMO_TEAM[1], w => updateIssue(w, byTitle("Skip-for-now on the invite teammates step").id, { estimate: 3 }, t(0.1)));
   return ws;
 }
