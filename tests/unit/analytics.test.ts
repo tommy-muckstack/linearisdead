@@ -13,4 +13,8 @@ describe("analytics privacy", () => {
     const e = scrub({ event: "$pageview", properties: { $current_url: "https://yourappisdead.com/linearisdead/app?q=secret#frag", $referrer: "https://google.com/search?q=me", title: "My private issue" } });
     expect(e.properties.$current_url).toBe("https://yourappisdead.com/linearisdead/app"); expect(e.properties.$referrer).toBe("https://google.com/search"); expect("title" in e.properties).toBe(false);
   });
+  it("cleans session-entry URLs and nested person properties", () => {
+    const e = scrub({ event: "$pageview", properties: { $session_entry_url: "https://yourappisdead.com/linearisdead/?ref=x#y", $set_once: { $initial_current_url: "https://yourappisdead.com/linearisdead/?ref=x", $initial_pathname: "/linearisdead/" } }, $set: { $current_url: "https://yourappisdead.com/linearisdead/app?q=1" } });
+    expect(e.properties.$session_entry_url).toBe("https://yourappisdead.com/linearisdead/"); expect(e.properties.$set_once.$initial_current_url).toBe("https://yourappisdead.com/linearisdead/"); expect(e.$set.$current_url).toBe("https://yourappisdead.com/linearisdead/app");
+  });
 });
