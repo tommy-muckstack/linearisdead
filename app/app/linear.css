@@ -180,3 +180,12 @@
 .lin-vrow{grid-template-columns:2fr 2fr .6fr auto!important}
 .lin-star{background:transparent;border:0;color:var(--ids-color-text-subtle);cursor:pointer;font-size:14px}.lin-star.on{color:#f2c94c}
 .lin-newproj .ids-input+.ids-input{max-width:280px}
+@media (max-width:860px){
+  .lin{grid-template-columns:minmax(0,1fr)}.lin-side,.lin-main,.lin-nav{min-width:0}
+  .lin-nav__team{display:none}.lin-nav>div:not(.lin-nav__label):not(.lin-nav__team){display:contents}
+  .lin-main__hd .lin-dm{margin-left:auto}.lin-dm__pop{right:-4px;width:min(320px,calc(100vw - 24px))}
+  .lin-triage-row{flex-wrap:wrap}.lin-triage-acts{padding:0 12px 8px}
+  .lin-rm__hd,.lin-rm__row{grid-template-columns:110px repeat(6,minmax(0,1fr))}.lin-rm__hd span{font-size:10px;padding:6px 4px}
+  .lin-note__at{display:none}.lin-teams{grid-template-columns:1fr 1fr!important}.lin-vrow{grid-template-columns:1fr 1fr!important}
+  .lin-newproj{flex-wrap:wrap}.lin-newproj .ids-input{max-width:none!important;flex:1 1 100%}
+}
