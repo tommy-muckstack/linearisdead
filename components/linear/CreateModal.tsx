@@ -23,7 +23,7 @@ function LabelPicker({ all, value, onChange }: { all: string[]; value: string[];
 
 export function CreateModal({ ws, initial, onCreate, onClose }: { ws: Workspace; initial?: IssueInput; onCreate: (i: IssueInput, more: boolean) => void; onClose: () => void }) {
   const [text, setText] = useState(initial?.title ?? ""); const [desc, setDesc] = useState("");
-  const [o, setO] = useState<IssueInput>({ status: "todo", labels: [], ...initial }); const ref = useRef<HTMLInputElement>(null);
+  const [o, setO] = useState<IssueInput>({ status: "todo", labels: [], ...(ws.autoAssign ? { assignee: ws.me } : {}), ...initial }); const ref = useRef<HTMLInputElement>(null);
   useEffect(() => ref.current?.focus(), []);
   const parsed = useMemo(() => parseQuickCreate(text, ws), [text, ws]);
   const labels = [...new Set([...(o.labels ?? []), ...(parsed.labels ?? [])])];
