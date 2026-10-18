@@ -6,7 +6,7 @@ import { BP } from "@/lib/basepath";
 import { useLocal } from "@/lib/useLocal";
 import { Logo } from "@/components/Logo";
 import {
-  PRIORITIES, STATUSES, addComment, createIssue, createProject, currentCycle, deleteIssues, emptyWorkspace, ensureCycles, filterIssues, groupIssues, identifier, isOpen, rollOver, setProjectStatus, toggleLabel, updateIssue,
+  PRIORITIES, STATUSES, addComment, renameMember, createIssue, createProject, currentCycle, deleteIssues, emptyWorkspace, ensureCycles, filterIssues, groupIssues, identifier, isOpen, rollOver, setProjectStatus, toggleLabel, updateIssue,
   type GroupBy, type Issue, type IssueInput, type Priority, type Status, type Workspace as WS,
 } from "@/lib/linear/model";
 import { seedWorkspace } from "@/lib/linear/seed";
@@ -18,7 +18,7 @@ import { CreateModal } from "./CreateModal";
 type Overlay = null | { kind: "picker"; field: Field; targets: string[] } | { kind: "create"; initial?: IssueInput } | { kind: "palette" } | { kind: "help" };
 const SHORTCUTS: [string, string][] = [["C", "Create issue"], ["J / K", "Move down / up"], ["Enter", "Open issue"], ["X", "Select issue"], ["S", "Set status"], ["P", "Set priority"], ["A", "Assign"], ["L", "Labels"], ["R", "Project"], ["U", "Cycle"], ["E", "Estimate"], ["V", "Toggle list / board"], ["/", "Filter"], ["G then I", "Go to active issues"], ["G then M", "Go to my issues"], ["G then B", "Go to backlog"], ["G then C", "Go to cycles"], ["G then P", "Go to projects"], ["⌘K", "Command menu"], ["⌘Z", "Undo"], ["⌘⌫", "Delete issue"], ["Esc", "Close / clear"], ["?", "This help"]];
 
-export function Workspace({ uid, name, email, demo, view }: { uid: string; name: string; email: string; demo: boolean; view: string[] }) {
+export function Workspace({ uid, name, email, demo, guest = false, view }: { uid: string; name: string; email: string; demo: boolean; guest?: boolean; view: string[] }) {
   const router = useRouter();
   const [stored, setStored, ready] = useLocal<WS | null>(uid, "ws", null);
   const [prefs, setPrefs] = useLocal<{ group: GroupBy; layout: "list" | "board" }>(uid, "prefs", { group: "status", layout: "list" });
@@ -29,7 +29,10 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
   const me = name || email.split("@")[0] || "You";
 
   // first load: demo gets a believable workspace; everyone gets cycles
-  useEffect(() => { if (ready && !stored) setStored(demo ? seedWorkspace(me) : ensureCycles(emptyWorkspace(me))); }, [ready, stored, demo, me, setStored]);
+  useEffect(() => { if (!ready || stored) return;
+    const adopted = !demo && !guest ? adoptGuestWorkspace(uid, me) : null; // work done as a guest follows you into your account
+    setStored(adopted ?? (demo ? seedWorkspace(me) : ensureCycles(emptyWorkspace(me)))); }, [ready, stored, demo, guest, uid, me, setStored]);
+  useEffect(() => { if (guest) try { localStorage.setItem(LAST_GUEST, uid); } catch { /* storage off */ } }, [guest, uid]);
   useEffect(() => { if (stored) { const n = ensureCycles(stored); if (n !== stored) setStored(n); } }, [stored, setStored]);
   const ws = stored;
 
@@ -143,9 +146,12 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
         {nav("/app/cycles", "Cycles", kind === "cycles", undefined, "G C")}{nav("/app/projects", "Projects", kind === "projects" || kind === "project", ws.projects.length, "G P")}
         {kind === "project" || kind === "projects" ? ws.projects.map(p => <Link key={p.id} href={`/app/project/${p.id}`} className={"lin-nav__item lin-nav__sub" + (arg === p.id ? " on" : "")}>{p.name}</Link>) : null}
       </nav>
-      <div className="lin-side__foot"><span className="ids-muted" style={{ fontSize: 12 }}>{demo ? "Demo account" : email}</span>
-        <button className="iconbtn" onClick={() => setOverlay({ kind: "help" })} aria-label="Keyboard shortcuts">?</button>
-        <form method="post" action={`${BP}/api/session/logout`} style={{ margin: 0 }}><button className="iconbtn">Sign out</button></form></div>
+      <div className="lin-side__foot">{guest
+        ? <><a className="lin-guest" href={`${BP}/login?callbackUrl=${encodeURIComponent(BP + "/app")}`} data-testid="guest-signin"><b>Guest</b> · Sign in to keep your work</a>
+          <button className="iconbtn" onClick={() => setOverlay({ kind: "help" })} aria-label="Keyboard shortcuts">?</button></>
+        : <><span className="ids-muted" style={{ fontSize: 12 }}>{demo ? "Demo account" : email}</span>
+          <button className="iconbtn" onClick={() => setOverlay({ kind: "help" })} aria-label="Keyboard shortcuts">?</button>
+          <form method="post" action={`${BP}/api/session/logout`} style={{ margin: 0 }}><button className="iconbtn">Sign out</button></form></>}</div>
     </aside>
     <main className="lin-main">
       <header className="lin-main__hd">
@@ -173,6 +179,17 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
     {overlay?.kind === "create" && <CreateModal ws={ws} initial={overlay.initial} onClose={() => setOverlay(null)} onCreate={(input, more) => { const r = createIssue(ws, { ...input, projectId: input.projectId ?? (kind === "project" ? arg ?? null : null) }); commit(r.ws, `Created ${identifier(r.ws, r.issue)}`); if (!more) { setOverlay(null); setFocusId(r.issue.id); } }} />}
     {overlay?.kind === "help" && <div className="lin-overlay" onMouseDown={e => { if (e.target === e.currentTarget) setOverlay(null); }}><HelpDialog onClose={() => setOverlay(null)} /></div>}
   </div>;
+}
+const LAST_GUEST = "linearisdead:lastGuest";
+/** If this browser was used as a guest, move that guest's workspace (and display prefs) to the signed-in account once. */
+function adoptGuestWorkspace(uid: string, me: string): WS | null {
+  try {
+    const g = localStorage.getItem(LAST_GUEST); if (!g || g === uid) return null;
+    const raw = localStorage.getItem(`linearisdead:${g}:ws`); if (!raw) return null;
+    const prefs = localStorage.getItem(`linearisdead:${g}:prefs`); if (prefs && !localStorage.getItem(`linearisdead:${uid}:prefs`)) localStorage.setItem(`linearisdead:${uid}:prefs`, prefs);
+    localStorage.removeItem(`linearisdead:${g}:ws`); localStorage.removeItem(`linearisdead:${g}:prefs`); localStorage.removeItem(LAST_GUEST);
+    const ws = JSON.parse(raw) as WS; return renameMember(ws, ws.me, me);
+  } catch { return null; }
 }
 function HelpDialog({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null); useEffect(() => ref.current?.focus(), []);
