@@ -35,8 +35,8 @@ async function client(): Promise<PH | null> {
     const p = m.default; const debug = debugOn();
     p.init(KEY!, {
       api_host: `${location.origin}${BP}/ingest`, ui_host: UI_HOST,
-      capture_pageview: false, capture_pageleave: true, autocapture: false, disable_session_recording: true, capture_heatmaps: false, capture_performance: false, before_send: scrub,
-      persistence: "localStorage+cookie", person_profiles: "identified_only", debug, opt_out_useragent_filter: debug,
+      capture_pageview: false, capture_pageleave: true, autocapture: false, disable_session_recording: true, capture_heatmaps: false, capture_performance: false, capture_dead_clicks: false, capture_exceptions: false, disable_surveys: true, before_send: scrub,
+      persistence: "localStorage+cookie", person_profiles: "always", debug, opt_out_useragent_filter: debug,
     });
     // Every IsDead app shares the yourappisdead.com cookie and super properties persist in it: clear other apps'
     // leftovers, then set ours (otherwise the hub's product=yourappisdead would ride along on this app's events).
@@ -57,10 +57,10 @@ export async function trackNow(event: EventName, props: Props = {}) {
 }
 /** Link this browser to the signed-in account (Firebase uid). Guests and the demo account stay anonymous. */
 export function identify(uid: string, account: "firebase" | "guest" | "demo") {
-  void client().then(p => { if (!p) return; if (account === "firebase") { if (p.get_distinct_id() !== uid) p.identify(uid, { account_type: account }); } else p.register({ account_type: account }); });
+  void client().then(p => { if (!p) return; p.register({ account_type: account }); if (account === "firebase" && p.get_distinct_id() !== uid) p.identify(uid, { account_type: account }); });
 }
 /** reset() wipes super properties too, so put this app's back straight away. */
-export function resetIdentity() { void client().then(p => { if (!p) return; p.reset(); p.register(superProps(surfaceOf(location.pathname))); }); }
+export function resetIdentity() { void client().then(p => { if (!p) return; p.reset(); p.register({ ...superProps(surfaceOf(location.pathname)), env: process.env.NODE_ENV === "production" ? "production" : "development" }); }); }
 /** onSubmit for the sign-out forms: sends app_signed_out, resets the identity, then lets the form post. */
 export function signOutSubmit(e: FormEvent<HTMLFormElement>) {
   const form = e.currentTarget; if (!analyticsEnabled || skipped()) return; e.preventDefault();

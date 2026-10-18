@@ -1,6 +1,6 @@
 # LinearIsDead
 
-Free, open-source Linear alternative. Part of the [IsDead series](https://yourappisdead.com). Served at `https://yourappisdead.com/linearisdead`.
+Free, open-source issue tracking. Part of the [IsDead series](https://yourappisdead.com). Served at `https://yourappisdead.com/linearisdead`.
 
 **Status: open source, not deployed yet**. Surfaces follow `templates/marketing-site.md` in `@isdead/design`: one marketing page (`/`, price comparison at `#pricing`), `/login`, and the app at `/app`.
 
