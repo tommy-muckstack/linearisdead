@@ -47,12 +47,12 @@ export function LnPricing() {
     {PLANS.map((p, i) => <div key={p.n} className="pl" style={{ left: 80 + i * 336 }}>
       <h2>{p.n}</h2><div className="pr">{p.p}</div><hr /><div className="bl">{i === 3 ? "" : <u><i /></u>}{p.b}</div><hr />
       <ul>{p.f.map((f) => <li key={f}><Ck />{f}</li>)}</ul>
-      <div className="bt">{i === 3 ? <Link href="/contact" className="g">Contact us</Link> : <><Link href="/app" className={"g" + (i === 2 ? " h" : "")}>Get started</Link>{i === 2 && <Link href="/contact" className="g s">Contact us</Link>}</>}</div></div>)}
+      <div className="bt">{i === 3 ? <Link href="/contact" className="g">Contact us</Link> : <><Link href="/app" data-cta="pricing_get_started" className={"g" + (i === 2 ? " h" : "")}>Get started</Link>{i === 2 && <Link href="/contact" className="g s">Contact us</Link>}</>}</div></div>)}
     <p className="tb" data-testid="free-note"><b>LinearIsDead has no paid plans.</b> These are the tiers paid issue trackers sell; everything LinearIsDead ships is free for everyone.</p>
     <Link href="/customers" className="cs2">How teams set it up →</Link>
     <LnMobileCompare plans={PLANS.map((p) => p.n)} groups={G} />
     {els}
-    <div className="fb" style={{ top: 4830 }}>{[0, 1, 2, 3].map((i) => <div key={i} style={{ left: 448 + i * 224 }}>{i === 3 ? <Link href="/contact">Contact us</Link> : <><Link href="/app" className={i === 2 ? "h" : ""}>Get started</Link>{i === 2 && <small>or <Link href="/contact"><u>contact us</u></Link></small>}</>}</div>)}</div>
+    <div className="fb" style={{ top: 4830 }}>{[0, 1, 2, 3].map((i) => <div key={i} style={{ left: 448 + i * 224 }}>{i === 3 ? <Link href="/contact">Contact us</Link> : <><Link href="/app" data-cta="pricing_get_started" className={i === 2 ? "h" : ""}>Get started</Link>{i === 2 && <small>or <Link href="/contact"><u>contact us</u></Link></small>}</>}</div>)}</div>
     <p className="ft2">Features LinearIsDead ships are listed in the <Link href="/docs">docs</Link>.</p>
     <LnCta top={5245} />
   </div><SiteFoot /></div></>;

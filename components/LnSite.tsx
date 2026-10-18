@@ -31,14 +31,14 @@ export function SiteNav({ active }: { active?: string }) {
       <Mega label="Resources" items={RESOURCES_MENU} open={open} setOpen={setOpen} />
       {TOP_LINKS.map(l => <Link key={l.label} href={l.href} className={active === l.label ? "on" : ""}>{l.label}</Link>)}
     </nav>
-    <div className="lns-acts"><Link href="/login" className="lns-li">Log in</Link><Link href="/signup" className="lns-su">Sign up</Link>
+    <div className="lns-acts"><Link href="/login" className="lns-li" data-cta="nav_login">Log in</Link><Link href="/signup" className="lns-su" data-cta="nav_signup">Sign up</Link>
       <button type="button" className="lns-burger" aria-label="Menu" aria-expanded={sheet} onClick={() => setSheet(s => !s)}><i /><i /></button></div>
   </div>
     {sheet && <div className="lns-sheet" role="dialog" aria-label="Menu">
       <b>Product</b>{PRODUCT_MENU.map(l => <A key={l.label} l={{ ...l, desc: undefined }} onClick={() => setSheet(false)} />)}
       <b>Resources</b>{RESOURCES_MENU.map(l => <A key={l.label} l={{ ...l, desc: undefined }} onClick={() => setSheet(false)} />)}
       <b>Company</b>{TOP_LINKS.map(l => <A key={l.label} l={l} onClick={() => setSheet(false)} />)}
-      <div className="lns-sheet__cta"><Link href="/login">Log in</Link><Link href="/signup" className="lns-su">Sign up</Link></div>
+      <div className="lns-sheet__cta"><Link href="/login" data-cta="menu_login">Log in</Link><Link href="/signup" className="lns-su" data-cta="menu_signup">Sign up</Link></div>
     </div>}
   </header>;
 }
@@ -55,7 +55,7 @@ export function SiteFoot() {
 
 export function SiteCta() {
   return <section className="lns-cta"><div className="lns-in"><h2>Built for the future.<br />Free today.</h2>
-    <div><Link href="/app" className="lns-btn">Open the app</Link><Link href="/contact" className="lns-btn ghost">Contact us</Link></div></div></section>;
+    <div><Link href="/app" className="lns-btn" data-cta="footer_open_app">Open the app</Link><Link href="/contact" className="lns-btn ghost">Contact us</Link></div></div></section>;
 }
 
 /** Shell for the flow-layout pages (/plan, /build, /changelog, …). */

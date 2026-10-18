@@ -4,6 +4,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { FirebaseClientConfig } from "@/lib/isdead-auth/config";
+import { EVENTS, trackNow } from "@/lib/analytics";
 import { signInWithEmail, signUpWithEmail, signInWithGoogle, resetPassword, authErrorMessage } from "@/lib/isdead-auth/client";
 import { BP } from "@/lib/basepath";
 import { Mark } from "@/components/Mark";
@@ -18,12 +19,12 @@ export function LinAuth({ config, demo, to, signup }: { config: FirebaseClientCo
   const go = (s: Step) => { setStep(s); setErr(""); setNote(""); };
   const run = async (f: () => Promise<void>) => { setBusy(true); setErr(""); setNote(""); try { await f(); } catch (e) { setErr(authErrorMessage(e)); } finally { setBusy(false); } };
   const notConfigured = () => setErr("Sign-in isn't configured on this deployment yet. Use the demo account or open the app as a guest.");
-  const google = () => { if (!config) return notConfigured(); run(async () => { await signInWithGoogle(config, session); window.location.assign(to); }); };
+  const google = () => { if (!config) return notConfigured(); run(async () => { await signInWithGoogle(config, session); await trackNow(signup ? EVENTS.app_signed_up : EVENTS.app_signed_in, { method: "google" }); window.location.assign(to); }); };
   const submitEmail = (e: React.FormEvent) => { e.preventDefault(); const m = emailError(email, signup); if (m) { setErr(m); return; } go("password"); };
   const submitPassword = (e: React.FormEvent) => { e.preventDefault();
     if (!config) return notConfigured();
     if (password.length < 6) { setErr(signup ? "Use at least 6 characters for your password." : "Please enter your password."); return; }
-    run(async () => { if (signup) await signUpWithEmail(config, session, email.trim(), password); else await signInWithEmail(config, session, email.trim(), password); window.location.assign(to); }); };
+    run(async () => { if (signup) await signUpWithEmail(config, session, email.trim(), password); else await signInWithEmail(config, session, email.trim(), password); await trackNow(signup ? EVENTS.app_signed_up : EVENTS.app_signed_in, { method: "password" }); window.location.assign(to); }); };
   const submitReset = (e: React.FormEvent) => { e.preventDefault(); const m = emailError(email); if (m) { setErr(m); return; }
     if (!config) return notConfigured();
     run(async () => { await resetPassword(config, email.trim()); setStep("password"); setNote("If that email has an account, a reset link is on its way."); }); };
