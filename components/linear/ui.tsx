@@ -45,3 +45,5 @@ export function Picker({ title, options, multi, onPick, onClose }: { title: stri
     </div></div>;
 }
 export const Kbd = ({ children }: { children: React.ReactNode }) => <kbd className="lin-kbd">{children}</kbd>;
+/** "2026-10-24" → "Oct 24" (calendar day, no timezone shift). */
+export const fmtDay = (d: string) => new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });

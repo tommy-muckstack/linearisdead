@@ -6,11 +6,12 @@ import { BP } from "@/lib/basepath";
 import { useLocal } from "@/lib/useLocal";
 import { Logo } from "@/components/Logo";
 import {
-  PRIORITIES, STATUSES, addComment, renameMember, createIssue, createProject, currentCycle, deleteIssues, emptyWorkspace, ensureCycles, filterIssues, groupIssues, identifier, isOpen, rollOver, setProjectStatus, toggleLabel, updateIssue,
+  PRIORITIES, STATUSES, addComment, renameMember, normalizeWorkspace, todayISO, createIssue, createProject, currentCycle, deleteIssues, emptyWorkspace, ensureCycles, filterIssues, groupIssues, identifier, isOpen, rollOver, setProjectStatus, toggleLabel, updateIssue,
   type GroupBy, type Issue, type IssueInput, type Priority, type Status, type Workspace as WS,
 } from "@/lib/linear/model";
 import { seedWorkspace } from "@/lib/linear/seed";
-import { Avatar, Kbd, Picker, PriorityIcon, StatusIcon, type Opt } from "./ui";
+import { Avatar, Kbd, Picker, PriorityIcon, StatusIcon, fmtDay, type Opt } from "./ui";
+import { ESTIMATES, estimateLabel } from "./estimates";
 import { Board, CyclesView, IssueList, ProjectsView, type RowProps } from "./Views";
 import { IssuePane, type Field } from "./IssuePane";
 import { CreateModal } from "./CreateModal";
@@ -33,7 +34,7 @@ export function Workspace({ uid, name, email, demo, guest = false, view }: { uid
     const adopted = !demo && !guest ? adoptGuestWorkspace(uid, me) : null; // work done as a guest follows you into your account
     setStored(adopted ?? (demo ? seedWorkspace(me) : ensureCycles(emptyWorkspace(me)))); }, [ready, stored, demo, guest, uid, me, setStored]);
   useEffect(() => { if (guest) try { localStorage.setItem(LAST_GUEST, uid); } catch { /* storage off */ } }, [guest, uid]);
-  useEffect(() => { if (stored) { const n = ensureCycles(stored); if (n !== stored) setStored(n); } }, [stored, setStored]);
+  useEffect(() => { if (stored) { const n = normalizeWorkspace(ensureCycles(stored)); if (n !== stored) setStored(n); } }, [stored, setStored]);
   const ws = stored;
 
   const notify = useCallback((m: string) => { setToast(m); setTimeout(() => setToast(t => (t === m ? "" : t)), 2400); }, []);
@@ -88,6 +89,7 @@ export function Workspace({ uid, name, email, demo, guest = false, view }: { uid
       else if (k === "k" || k === "ArrowUp") { if (onListView) { e.preventDefault(); move(-1); } }
       else if (k === "Enter") { if (focusId && onListView) { e.preventDefault(); setOpenId(focusId); } }
       else if (k === "x") { if (focusId) { e.preventDefault(); toggleSel(focusId); } }
+      else if (e.shiftKey && (k === "D" || k === "P")) { e.preventDefault(); openPicker(k === "D" ? "due" : "parent"); }
       else if (map[k.toLowerCase()] && !e.shiftKey) { e.preventDefault(); openPicker(map[k.toLowerCase()]); }
       else if (k === "v") { e.preventDefault(); setLayout(prefs.layout === "list" ? "board" : "list"); }
       else if (k === "/") { e.preventDefault(); filterRef.current?.focus(); }
@@ -115,7 +117,11 @@ export function Workspace({ uid, name, email, demo, guest = false, view }: { uid
       case "labels": return { title: "Toggle label", multi: true, opts: ws.labels.map(l => ({ id: l, label: l, checked: t.length > 0 && t.every(i => i.labels.includes(l)) })), pick: (id: string) => { const all = t.every(i => i.labels.includes(id)); apply(ids, i => ({ labels: all ? i.labels.filter(l => l !== id) : i.labels.includes(id) ? i.labels : [...i.labels, id] }), all ? `Removed ${id}` : `Added ${id}`); } };
       case "project": return { title: "Set project", opts: [{ id: "", label: "No project" }, ...ws.projects.map(p => ({ id: p.id, label: p.name }))], pick: (id: string) => apply(ids, () => ({ projectId: id || null }), id ? "Project set" : "Project cleared") };
       case "cycle": return { title: "Add to cycle", opts: [{ id: "", label: "No cycle" }, ...ws.cycles.filter(c => +new Date(c.endsAt) > Date.now()).map(c => ({ id: c.id, label: `Cycle ${c.number}${c.id === cur?.id ? " · current" : " · upcoming"}` }))], pick: (id: string) => apply(ids, () => ({ cycleId: id || null }), id ? "Added to cycle" : "Removed from cycle") };
-      default: return { title: "Estimate", opts: [{ id: "", label: "No estimate" }, ...[1, 2, 3, 5, 8].map(n => ({ id: String(n), label: `${n} point${n > 1 ? "s" : ""}` }))], pick: (id: string) => apply(ids, () => ({ estimate: id ? +id : null }), id ? `Estimate → ${id}` : "Estimate cleared") };
+      case "due": { const d = (n: number) => todayISO(new Date(Date.now() + n * 86_400_000)); const fri = (5 - new Date().getDay() + 7) % 7 || 7;
+        const presets = [{ id: d(0), label: "Today" }, { id: d(1), label: "Tomorrow" }, { id: d(fri), label: "End of this week" }, { id: d(7), label: "In one week" }, { id: d(14), label: "In two weeks" }, { id: d(30), label: "In a month" }, { id: "", label: "No due date" }];
+        return { title: "Set due date", opts: presets.filter((o, n) => presets.findIndex(x => x.id === o.id) === n).map(o => ({ ...o, hint: o.id ? fmtDay(o.id) : undefined })), pick: (id: string) => apply(ids, () => ({ dueDate: id || null }), id ? `Due ${fmtDay(id)}` : "Due date cleared") }; }
+      case "parent": return { title: "Set parent issue", opts: [{ id: "", label: "No parent" }, ...ws.issues.filter(i => !ids.includes(i.id)).slice(0, 300).map(i => ({ id: i.id, label: `${identifier(ws, i)} ${i.title}`, icon: <StatusIcon status={i.status} /> }))], pick: (id: string) => apply(ids, () => ({ parentId: id || null }), id ? "Parent set" : "Parent removed") };
+      default: return { title: "Estimate", opts: [{ id: "", label: "No estimate" }, ...ESTIMATES(ws).map(([n, l]) => ({ id: String(n), label: l }))], pick: (id: string) => apply(ids, () => ({ estimate: id ? +id : null }), id ? `Estimate → ${estimateLabel(ws, +id)}` : "Estimate cleared") };
     }
   };
 
@@ -170,7 +176,7 @@ export function Workspace({ uid, name, email, demo, guest = false, view }: { uid
             : prefs.layout === "board" ? <Board ws={ws} issues={issues} rp={rp} onMove={(id, s) => apply([id], () => ({ status: s }), `Moved to ${STATUSES.find(x => x.id === s)!.label}`)} onCreateIn={s => setOverlay({ kind: "create", initial: { status: s as Status } })} />
             : <IssueList groups={groups} rp={rp} onCreateIn={s => setOverlay({ kind: "create", initial: s === "status" || !STATUSES.some(x => x.id === s) ? undefined : { status: s as Status } })} />}
         </div>
-        {opened && <IssuePane ws={ws} issue={opened} onUpdate={p => commit(updateIssue(ws, opened.id, p))} onComment={b => commit(addComment(ws, opened.id, b), "Comment added")} onDelete={remove} onClose={() => setOpenId(null)} openPicker={f => openPicker(f, [opened.id])} />}
+        {opened && <IssuePane ws={ws} issue={opened} onUpdate={p => commit(updateIssue(ws, opened.id, p))} onComment={b => commit(addComment(ws, opened.id, b), "Comment added")} onDelete={remove} onClose={() => setOpenId(null)} openPicker={f => openPicker(f, [opened.id])} onOpen={id => { setFocusId(id); setOpenId(id); }} onAddSub={() => setOverlay({ kind: "create", initial: { parentId: opened.id, projectId: opened.projectId, cycleId: opened.cycleId } })} />}
       </div>
     </main>
     {toast && <div className="lin-toast" role="status" data-testid="toast">{toast}{history.current.length > 0 && <button onClick={undo}>Undo</button>}</div>}
