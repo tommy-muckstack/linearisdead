@@ -46,6 +46,7 @@ export type Workspace = {
   inboxRead?: string[]; inboxHidden?: string[];
   /** Settings › Preferences / Notifications. */
   homeView?: "active" | "my" | "inbox"; autoAssign?: boolean;
+  views?: SavedView[];
   notify?: { status: boolean; assignee: boolean; comments: boolean; other: boolean };
 };
 
@@ -180,20 +181,50 @@ export function matches(ws: Workspace, i: Issue, f: Filter, now = new Date()): b
 }
 export const filterIssues = (ws: Workspace, q: string, base: Issue[] = ws.issues, now = new Date()) => { const f = parseFilter(q); return base.filter(i => matches(ws, i, f, now)); };
 
-export type GroupBy = "status" | "priority" | "assignee" | "project" | "none";
-export type Group = { key: string; label: string; issues: Issue[] };
-export function sortIssues(list: Issue[]): Issue[] {
-  return [...list].sort((a, b) => (a.priority || 9) - (b.priority || 9) || b.number - a.number);
+export type GroupBy = "status" | "priority" | "assignee" | "project" | "cycle" | "label" | "none";
+export const GROUPINGS: [GroupBy, string][] = [["status", "Status"], ["assignee", "Assignee"], ["project", "Project"], ["priority", "Priority"], ["cycle", "Cycle"], ["label", "Label"], ["none", "No grouping"]];
+export type OrderBy = "priority" | "status" | "created" | "updated" | "due";
+export const ORDERINGS: [OrderBy, string][] = [["priority", "Priority"], ["status", "Status"], ["created", "Last created"], ["updated", "Last updated"], ["due", "Due date"]];
+export type Group = { key: string; label: string; issues: Issue[]; sub?: Group[] };
+const statusRank = (s: Status) => STATUSES.findIndex(x => x.id === s);
+export function sortIssues(list: Issue[], order: OrderBy = "priority"): Issue[] {
+  const byPri = (a: Issue, b: Issue) => (a.priority || 9) - (b.priority || 9) || b.number - a.number;
+  const cmp: Record<OrderBy, (a: Issue, b: Issue) => number> = {
+    priority: byPri,
+    status: (a, b) => statusRank(b.status) - statusRank(a.status) || byPri(a, b),
+    created: (a, b) => b.createdAt.localeCompare(a.createdAt) || b.number - a.number,
+    updated: (a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.number - a.number,
+    due: (a, b) => (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999") || byPri(a, b),
+  };
+  return [...list].sort(cmp[order]);
 }
-export function groupIssues(ws: Workspace, list: Issue[], by: GroupBy, keepEmpty = false): Group[] {
-  if (by === "none") return [{ key: "all", label: "All issues", issues: sortIssues(list) }];
+export function groupIssues(ws: Workspace, list: Issue[], by: GroupBy, keepEmpty = false, order: OrderBy = "priority", subBy: GroupBy = "none"): Group[] {
+  const finish = (g: Group): Group => (subBy !== "none" && subBy !== by ? { ...g, sub: groupIssues(ws, g.issues, subBy, false, order) } : g);
+  if (by === "none") return [finish({ key: "all", label: "All issues", issues: sortIssues(list, order) })];
   const defs: { key: string; label: string; test: (i: Issue) => boolean }[] =
     by === "status" ? STATUSES.map(s => ({ key: s.id, label: s.label, test: (i: Issue) => i.status === s.id }))
     : by === "priority" ? PRIORITIES.map(p => ({ key: String(p.id), label: p.label, test: (i: Issue) => i.priority === p.id }))
     : by === "assignee" ? [...ws.members, null].map(m => ({ key: m ?? "none", label: m ?? "Unassigned", test: (i: Issue) => i.assignee === m }))
+    : by === "cycle" ? [...[...ws.cycles].sort((a, b) => a.number - b.number).map(c => ({ key: c.id, label: `Cycle ${c.number}`, test: (i: Issue) => i.cycleId === c.id })), { key: "none", label: "No cycle", test: (i: Issue) => !i.cycleId }]
+    : by === "label" ? [...ws.labels.map(l => ({ key: "l:" + l, label: l, test: (i: Issue) => i.labels.includes(l) })), { key: "none", label: "No label", test: (i: Issue) => !i.labels.length }]
     : [...ws.projects.map(p => ({ key: p.id, label: p.name, test: (i: Issue) => i.projectId === p.id })), { key: "none", label: "No project", test: (i: Issue) => !i.projectId }];
-  return defs.map(d => ({ key: d.key, label: d.label, issues: sortIssues(list.filter(d.test)) })).filter(g => g.issues.length || (keepEmpty && by === "status" && g.key !== "canceled" && g.key !== "triage"));
+  return defs.map(d => finish({ key: d.key, label: d.label, issues: sortIssues(list.filter(d.test), order) })).filter(g => g.issues.length || (keepEmpty && by === "status" && g.key !== "canceled" && g.key !== "triage"));
 }
+
+// ---- display options and saved views ----
+export const DISPLAY_PROPS: [string, string][] = [["id", "ID"], ["status", "Status"], ["assignee", "Assignee"], ["priority", "Priority"], ["project", "Project"], ["due", "Due date"], ["cycle", "Cycle"], ["estimate", "Estimate"], ["labels", "Labels"], ["subs", "Sub-issues"], ["created", "Created"], ["updated", "Updated"]];
+export type Display = { layout: "list" | "board"; group: GroupBy; subGroup: GroupBy; order: OrderBy; showSub: boolean; showEmpty: boolean; props: string[] };
+export const DEFAULT_DISPLAY: Display = { layout: "list", group: "status", subGroup: "none", order: "priority", showSub: true, showEmpty: false, props: ["id", "status", "assignee", "priority", "project", "due", "estimate", "labels", "subs", "created"] };
+/** Fill in options added after a display was saved. */
+export const withDisplayDefaults = (d: Partial<Display> | undefined): Display => ({ ...DEFAULT_DISPLAY, ...d, props: d?.props ?? DEFAULT_DISPLAY.props });
+export type SavedView = { id: string; name: string; filter: string; display: Display; favorite: boolean; createdAt: string; owner: string };
+export function saveView(ws: Workspace, name: string, filter: string, display: Display, now = new Date()): { ws: Workspace; view: SavedView } {
+  const n = name.trim(); if (!n) throw new Error("A view needs a name");
+  const view: SavedView = { id: uid("view"), name: n, filter: filter.trim(), display, favorite: false, createdAt: iso(now), owner: ws.me };
+  return { ws: { ...ws, views: [...(ws.views ?? []), view] }, view };
+}
+export const updateView = (ws: Workspace, id: string, patch: Partial<Omit<SavedView, "id">>): Workspace => ({ ...ws, views: (ws.views ?? []).map(v => (v.id === id ? { ...v, ...patch } : v)) });
+export const deleteView = (ws: Workspace, id: string): Workspace => ({ ...ws, views: (ws.views ?? []).filter(v => v.id !== id) });
 
 // ---- cycles ----
 /** Make sure the current and next cycle exist (cycles are back-to-back windows of `cycleDays`). */

@@ -6,7 +6,7 @@ import { BP } from "@/lib/basepath";
 import { useLocal } from "@/lib/useLocal";
 import { Logo } from "@/components/Logo";
 import {
-  PRIORITIES, STATUSES, addComment, renameMember, normalizeWorkspace, todayISO, acceptIssue, declineIssue, markDuplicate, inbox, isSubscribed, markRead, hideNotifications, createInitiative, updateInitiative, deleteInitiative, updateProject, createIssue, createProject, currentCycle, deleteIssues, emptyWorkspace, ensureCycles, filterIssues, groupIssues, identifier, isOpen, rollOver, setProjectStatus, toggleLabel, updateIssue,
+  PRIORITIES, STATUSES, DEFAULT_DISPLAY, withDisplayDefaults, saveView, updateView, deleteView, type Display, addComment, renameMember, normalizeWorkspace, todayISO, acceptIssue, declineIssue, markDuplicate, inbox, isSubscribed, markRead, hideNotifications, createInitiative, updateInitiative, deleteInitiative, updateProject, createIssue, createProject, currentCycle, deleteIssues, emptyWorkspace, ensureCycles, filterIssues, groupIssues, identifier, isOpen, rollOver, setProjectStatus, toggleLabel, updateIssue,
   type GroupBy, type Issue, type IssueInput, type Priority, type Status, type Workspace as WS,
 } from "@/lib/linear/model";
 import { seedWorkspace } from "@/lib/linear/seed";
@@ -17,19 +17,20 @@ import { IssuePane, type Field } from "./IssuePane";
 import { CreateModal } from "./CreateModal";
 import { AppNotFound, InboxView, InitiativesView, MyActivity, MyTabs, RoadmapView, TeamsView, TriageView } from "./Pages";
 import { Onboarding } from "./Onboarding";
+import { DisplayMenu, SaveViewDialog, ViewsPage } from "./Display";
 import { SETTINGS, SettingsView } from "./Settings";
 import type { FirebaseClientConfig } from "@/lib/isdead-auth/config";
 import { SHORTCUTS } from "@/lib/linear/shortcuts";
 
-type Overlay = null | { kind: "picker"; field: Field; targets: string[] } | { kind: "create"; initial?: IssueInput } | { kind: "palette" } | { kind: "help" } | { kind: "dup"; id: string };
+type Overlay = null | { kind: "picker"; field: Field; targets: string[] } | { kind: "create"; initial?: IssueInput } | { kind: "palette" } | { kind: "help" } | { kind: "dup"; id: string } | { kind: "saveview" };
 /** Routes under /app that render issue rows (j/k, filters, display options). */
-const LIST_KINDS = ["active", "backlog", "all", "issue", "project", "my", "triage"];
-const KNOWN = [...LIST_KINDS, "cycles", "projects", "inbox", "teams", "initiatives", "roadmap", "settings"];
+const LIST_KINDS = ["active", "backlog", "all", "issue", "project", "my", "triage", "view"];
+const KNOWN = [...LIST_KINDS, "cycles", "projects", "inbox", "teams", "initiatives", "roadmap", "settings", "views"];
 
 export function Workspace({ uid, name, email, demo, guest = false, view, firebase = null }: { uid: string; name: string; email: string; demo: boolean; guest?: boolean; view: string[]; firebase?: FirebaseClientConfig | null }) {
   const router = useRouter();
   const [stored, setStored, ready] = useLocal<WS | null>(uid, "ws", null);
-  const [prefs, setPrefs] = useLocal<{ group: GroupBy; layout: "list" | "board" }>(uid, "prefs", { group: "status", layout: "list" });
+  const [prefs, setPrefs] = useLocal<Partial<Display>>(uid, "prefs", DEFAULT_DISPLAY);
   const [q, setQ] = useState(""); const [openId, setOpenId] = useState<string | null>(view[0] === "issue" ? null : null);
   const [focusId, setFocusId] = useState<string | null>(null); const [selected, setSelected] = useState<Set<string>>(new Set());
   const [overlay, setOverlay] = useState<Overlay>(null); const [toast, setToast] = useState<string>(""); const [cycleSel, setCycleSel] = useState<string | null>(null);
@@ -51,7 +52,10 @@ export function Workspace({ uid, name, email, demo, guest = false, view, firebas
   const undo = useCallback(() => { const p = history.current.pop(); if (p) { setStored(p); notify("Undone"); } }, [setStored, notify]);
 
   const [kind, arg] = [view[0] ?? "active", view[1]];
-  const known = KNOWN.includes(kind) && (kind !== "my" || !arg || ["created", "subscribed", "activity"].includes(arg)) && (kind !== "inbox" || !arg || arg === "unread") && (kind !== "settings" || !arg || SETTINGS.some(x => x[1] === arg));
+  const savedView = kind === "view" ? ws?.views?.find(v => v.id === arg) : undefined;
+  const display = withDisplayDefaults(savedView ? savedView.display : prefs);
+  const setDisplay = useCallback((p: Partial<Display>) => { if (savedView && ws) commit(updateView(ws, savedView.id, { display: { ...withDisplayDefaults(savedView.display), ...p } })); else setPrefs(x => ({ ...withDisplayDefaults(x), ...p })); }, [savedView, ws, commit, setPrefs]);
+  const known = (kind === "view" ? !!arg && (!ws || !!savedView) : KNOWN.includes(kind)) && (kind !== "my" || !arg || ["created", "subscribed", "activity"].includes(arg)) && (kind !== "inbox" || !arg || arg === "unread") && (kind !== "settings" || !arg || SETTINGS.some(x => x[1] === arg));
   // bare /app opens the home view chosen in Settings › Preferences
   useEffect(() => { if (!view.length && ws?.homeView && ws.homeView !== "active") router.replace(ws.homeView === "my" ? "/app/my" : "/app/inbox"); }, [view.length, ws?.homeView, router]);
   useEffect(() => { if (kind === "issue" && arg && ws) { const i = ws.issues.find(i => identifier(ws, i).toLowerCase() === arg.toLowerCase()); if (i) { setOpenId(i.id); setFocusId(i.id); } } }, [kind, arg, ws?.issues.length]);
@@ -62,16 +66,17 @@ export function Workspace({ uid, name, email, demo, guest = false, view, firebas
     if (kind === "triage") return ws.issues.filter(i => i.status === "triage");
     const team = ws.issues.filter(i => i.status !== "triage"); // triage issues stay out of team lists until accepted
     if (kind === "backlog") return team.filter(i => i.status === "backlog");
-    if (kind === "all" || kind === "issue") return team;
+    if (kind === "all" || kind === "issue" || kind === "view") return team;
     if (kind === "project" && arg) return team.filter(i => i.projectId === arg);
     if (kind !== "active") return [];
     const recent = Date.now() - 14 * 86_400_000;
     return team.filter(i => (isOpen(i.status) && i.status !== "backlog") || (i.status === "done" && i.completedAt && +new Date(i.completedAt) > recent));
   }, [ws, kind, arg]);
-  const issues = useMemo(() => (ws ? filterIssues(ws, q, base) : []), [ws, q, base]);
-  const groupBy: GroupBy = prefs.layout === "board" ? "status" : prefs.group;
-  const groups = useMemo(() => (ws ? groupIssues(ws, issues, groupBy) : []), [ws, issues, groupBy]);
-  const flat = useMemo(() => groups.flatMap(g => g.issues), [groups]);
+  const query = savedView ? `${savedView.filter} ${q}`.trim() : q;
+  const issues = useMemo(() => (ws ? filterIssues(ws, query, base).filter(i => display.showSub || !i.parentId) : []), [ws, query, base, display.showSub]);
+  const groupBy: GroupBy = display.layout === "board" ? "status" : display.group;
+  const groups = useMemo(() => (ws ? groupIssues(ws, issues, groupBy, display.showEmpty, display.order, display.layout === "list" ? display.subGroup : "none") : []), [ws, issues, groupBy, display.showEmpty, display.order, display.layout, display.subGroup]);
+  const flat = useMemo(() => groups.flatMap(g => (g.sub ? g.sub.flatMap(x => x.issues) : g.issues)), [groups]);
   const onListView = known && LIST_KINDS.includes(kind) && !(kind === "my" && arg === "activity");
   const listIssues = kind === "cycles" ? (ws && cycleSel ? ws.issues.filter(i => i.cycleId === cycleSel) : []) : flat;
 
@@ -86,7 +91,7 @@ export function Workspace({ uid, name, email, demo, guest = false, view, firebas
   const move = useCallback((d: number) => { if (!flat.length) return; const i = Math.max(0, Math.min(flat.length - 1, flat.findIndex(x => x.id === focusId) + d)); setFocusId(flat[i].id); if (openId) setOpenId(flat[i].id); }, [flat, focusId, openId]);
   const toggleSel = useCallback((id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; }), []);
   const remove = useCallback(() => { const t = targets(); if (!ws || !t.length) return; commit(deleteIssues(ws, t), t.length > 1 ? `${t.length} issues deleted` : "Issue deleted"); setOpenId(null); setSelected(new Set()); }, [ws, targets, commit]);
-  const setLayout = useCallback((layout: "list" | "board") => setPrefs(p => ({ ...p, layout })), [setPrefs]);
+  const setLayout = useCallback((layout: "list" | "board") => setDisplay({ layout }), [setDisplay]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -108,17 +113,17 @@ export function Workspace({ uid, name, email, demo, guest = false, view, firebas
       else if (k === "x") { if (focusId) { e.preventDefault(); toggleSel(focusId); } }
       else if (e.shiftKey && (k === "D" || k === "P")) { e.preventDefault(); openPicker(k === "D" ? "due" : "parent"); }
       else if (map[k.toLowerCase()] && !e.shiftKey) { e.preventDefault(); openPicker(map[k.toLowerCase()]); }
-      else if (k === "v") { e.preventDefault(); setLayout(prefs.layout === "list" ? "board" : "list"); }
+      else if (k === "v") { e.preventDefault(); setLayout(display.layout === "list" ? "board" : "list"); }
       else if (k === "/") { e.preventDefault(); filterRef.current?.focus(); }
       else if (k === "?") { e.preventDefault(); setOverlay({ kind: "help" }); }
       else if (k === "Escape") { if (openId) setOpenId(null); else if (selected.size) setSelected(new Set()); else if (q) setQ(""); }
     };
     window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
-  }, [overlay, focusId, openId, selected, q, onListView, prefs.layout, move, go, undo, remove, openPicker, setLayout, toggleSel, kind]);
+  }, [overlay, focusId, openId, selected, q, onListView, display.layout, move, go, undo, remove, openPicker, setLayout, toggleSel, kind]);
 
   if (!ws) return onboard ? <Onboarding me={me} guest={guest} onDone={w => { setStored(w); setOnboard(false); }} /> : <div className="lin-loading" role="status">Loading your workspace…</div>;
 
-  const rp: RowProps = { ws, focusId, selected, onFocus: setFocusId, onSelect: toggleSel, onOpen: id => { setFocusId(id); setOpenId(id); } };
+  const rp: RowProps = { ws, focusId, selected, onFocus: setFocusId, onSelect: toggleSel, onOpen: id => { setFocusId(id); setOpenId(id); }, show: new Set(display.props) };
   const opened = openId ? ws.issues.find(i => i.id === openId) : null;
   const cur = currentCycle(ws);
   const counts = { active: ws.issues.filter(i => isOpen(i.status) && !["backlog", "triage"].includes(i.status)).length, my: ws.issues.filter(i => i.assignee === ws.me && isOpen(i.status) && i.status !== "triage").length, backlog: ws.issues.filter(i => i.status === "backlog").length, triage: ws.issues.filter(i => i.status === "triage").length, inbox: inbox(ws).filter(n => !n.read).length };
@@ -145,15 +150,15 @@ export function Workspace({ uid, name, email, demo, guest = false, view, firebas
   // ---- command palette ----
   const paletteItems: Opt[] = [
     { id: "cmd:create", label: "Create issue", hint: "C" }, { id: "cmd:status", label: "Change status…", hint: "S" }, { id: "cmd:priority", label: "Set priority…", hint: "P" }, { id: "cmd:assign", label: "Assign to…", hint: "A" }, { id: "cmd:label", label: "Add label…", hint: "L" },
-    { id: "nav:/app/inbox", label: "Go to Inbox" }, { id: "nav:/app/triage", label: "Go to Triage" }, { id: "nav:/app/initiatives", label: "Go to Initiatives" }, { id: "nav:/app/roadmap", label: "Go to Roadmap" }, { id: "nav:/app/teams", label: "Go to Teams" },
+    { id: "nav:/app/inbox", label: "Go to Inbox" }, { id: "nav:/app/triage", label: "Go to Triage" }, { id: "nav:/app/initiatives", label: "Go to Initiatives" }, { id: "nav:/app/roadmap", label: "Go to Roadmap" }, { id: "nav:/app/views", label: "Go to Views" }, { id: "nav:/app/teams", label: "Go to Teams" },
     { id: "nav:/app/active", label: "Go to Active issues", hint: "G I" }, { id: "nav:/app/settings", label: "Open settings", hint: "G S" }, { id: "nav:/app/my", label: "Go to My issues", hint: "G M" }, { id: "nav:/app/backlog", label: "Go to Backlog", hint: "G B" }, { id: "nav:/app/all", label: "Go to All issues", hint: "G A" }, { id: "nav:/app/cycles", label: "Go to Cycles", hint: "G C" }, { id: "nav:/app/projects", label: "Go to Projects", hint: "G P" },
-    { id: "cmd:view", label: `Switch to ${prefs.layout === "list" ? "board" : "list"} layout`, hint: "V" }, { id: "cmd:undo", label: "Undo last change", hint: "⌘Z" }, { id: "cmd:help", label: "Keyboard shortcuts", hint: "?" },
+    { id: "cmd:view", label: `Switch to ${display.layout === "list" ? "board" : "list"} layout`, hint: "V" }, { id: "cmd:undo", label: "Undo last change", hint: "⌘Z" }, { id: "cmd:help", label: "Keyboard shortcuts", hint: "?" },
     ...ws.issues.slice(0, 200).map(i => ({ id: "iss:" + i.id, label: `${identifier(ws, i)} ${i.title}`, icon: <StatusIcon status={i.status} /> })),
   ];
   const runPalette = (id: string) => {
     const [t, v] = [id.split(":")[0], id.slice(id.indexOf(":") + 1)];
     if (t === "nav") go(v); else if (t === "iss") { go("/app/all"); setFocusId(v); setOpenId(v); }
-    else setTimeout(() => { if (v === "create") setOverlay({ kind: "create" }); else if (v === "view") setLayout(prefs.layout === "list" ? "board" : "list"); else if (v === "undo") undo(); else if (v === "help") setOverlay({ kind: "help" });
+    else setTimeout(() => { if (v === "create") setOverlay({ kind: "create" }); else if (v === "view") setLayout(display.layout === "list" ? "board" : "list"); else if (v === "undo") undo(); else if (v === "help") setOverlay({ kind: "help" });
       else openPicker(({ status: "status", priority: "priority", assign: "assignee", label: "labels" } as Record<string, Field>)[v]); }, 0);
   };
 
@@ -179,7 +184,8 @@ export function Workspace({ uid, name, email, demo, guest = false, view, firebas
         <div className="lin-nav__label">Workspace</div>
         {nav("/app/initiatives", "Initiatives", kind === "initiatives", (ws.initiatives ?? []).length || undefined)}{nav("/app/projects", "Projects", kind === "projects" || kind === "project", ws.projects.length, "G P")}
         {kind === "project" || kind === "projects" ? ws.projects.map(p => <Link key={p.id} href={`/app/project/${p.id}`} className={"lin-nav__item lin-nav__sub" + (arg === p.id ? " on" : "")}>{p.name}</Link>) : null}
-        {nav("/app/roadmap", "Roadmap", kind === "roadmap")}{nav("/app/teams", "Teams", kind === "teams")}
+        {nav("/app/views", "Views", kind === "views" || kind === "view", (ws.views ?? []).length || undefined)}{nav("/app/roadmap", "Roadmap", kind === "roadmap")}{nav("/app/teams", "Teams", kind === "teams")}
+        {(ws.views ?? []).some(v => v.favorite) && <><div className="lin-nav__label">Favorites</div>{(ws.views ?? []).filter(v => v.favorite).map(v => <Fragment key={v.id}>{nav(`/app/view/${v.id}`, v.name, kind === "view" && arg === v.id)}</Fragment>)}</>}
         <div className="lin-nav__label">Your teams</div>
         <div className="lin-nav__team">{ws.teamName}</div>
         {ws.triageEnabled !== false && nav("/app/triage", "Triage", kind === "triage", counts.triage || undefined)}
@@ -195,13 +201,15 @@ export function Workspace({ uid, name, email, demo, guest = false, view, firebas
     </aside>
     <main className="lin-main">
       <header className="lin-main__hd">
-        <h1>{known ? titles[kind] ?? "Issues" : "Not found"}</h1>
+        <h1>{!known ? "Not found" : savedView ? savedView.name : titles[kind] ?? "Issues"}</h1>
         {onListView && <>
           <input ref={filterRef} className="lin-filter" aria-label="Filter issues" placeholder="Filter…  e.g. status:todo priority:high assignee:me label:bug" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === "Escape") { e.stopPropagation(); setQ(""); (e.target as HTMLInputElement).blur(); } if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
-          {prefs.layout === "list" && <label className="lin-sel"><span className="ids-muted">Group</span><select aria-label="Group by" value={prefs.group} onChange={e => setPrefs(p => ({ ...p, group: e.target.value as GroupBy }))}>{["status", "priority", "assignee", "project", "none"].map(g => <option key={g}>{g}</option>)}</select></label>}
-          <div className="lin-seg" role="group" aria-label="Layout"><button className={prefs.layout === "list" ? "on" : ""} aria-pressed={prefs.layout === "list"} onClick={() => setLayout("list")}>List</button><button className={prefs.layout === "board" ? "on" : ""} aria-pressed={prefs.layout === "board"} onClick={() => setLayout("board")}>Board</button></div></>}
+          {q.trim() && !savedView && <button className="iconbtn" onClick={() => setOverlay({ kind: "saveview" })} data-testid="save-view">Save view</button>}
+          {q.trim() && savedView && <button className="iconbtn" onClick={() => { commit(updateView(ws, savedView.id, { filter: query }), "View updated"); setQ(""); }}>Save to view</button>}
+          <DisplayMenu d={display} onChange={setDisplay} /></>}
       </header>
       {kind === "my" && <MyTabs tab={arg ?? ""} />}
+      {savedView && <p className="lin-summary ids-muted" data-testid="view-filter">View filter: <code>{savedView.filter || "all issues"}</code> · display options save to this view</p>}
       {kind === "project" && arg && ws.projects.find(p => p.id === arg) && <p className="lin-summary ids-muted">{ws.projects.find(p => p.id === arg)!.summary}</p>}
       {selected.size > 0 && <div className="lin-bulk" role="status" data-testid="bulk-bar"><b>{selected.size} selected</b><button className="iconbtn" onClick={() => openPicker("status")}>Status</button><button className="iconbtn" onClick={() => openPicker("priority")}>Priority</button><button className="iconbtn" onClick={() => openPicker("assignee")}>Assign</button><button className="iconbtn" onClick={() => openPicker("labels")}>Label</button><button className="iconbtn" onClick={remove}>Delete</button><button className="iconbtn" onClick={() => setSelected(new Set())}>Clear</button></div>}
       <div className={"lin-body" + (opened ? " has-pane" : "")}>
@@ -211,11 +219,12 @@ export function Workspace({ uid, name, email, demo, guest = false, view, firebas
             : kind === "my" && arg === "activity" ? <MyActivity ws={ws} onOpen={id => { setFocusId(id); setOpenId(id); }} />
             : kind === "triage" ? <TriageView ws={ws} rp={rp} list={flat} onAccept={id => triageAct("accept", id)} onDecline={id => triageAct("decline", id)} onDuplicate={id => setOverlay({ kind: "dup", id })} onNew={() => setOverlay({ kind: "create", initial: { status: "triage" } })} />
             : kind === "teams" ? <TeamsView ws={ws} />
+            : kind === "views" ? <ViewsPage ws={ws} onCreate={(n, f) => { const r = saveView(ws, n, f, display); commit(r.ws, "View created"); go(`/app/view/${r.view.id}`); }} onUpdate={(id, p) => commit(updateView(ws, id, p))} onDelete={id => commit(deleteView(ws, id), "View deleted")} />
             : kind === "initiatives" ? <InitiativesView ws={ws} onNew={n => commit(createInitiative(ws, n).ws, "Initiative created")} onUpdate={(id, p) => commit(updateInitiative(ws, id, p))} onDelete={id => commit(deleteInitiative(ws, id), "Initiative deleted")} />
             : kind === "roadmap" ? <RoadmapView ws={ws} onDates={(id, p) => commit(updateProject(ws, id, p), "Dates updated")} />
             : kind === "cycles" ? <CyclesView ws={ws} selectedId={cycleSel} onSelect={setCycleSel} rp={rp} onRoll={(f, t) => { const r = rollOver(ws, f, t); commit(r.ws, r.moved ? `${r.moved} issue${r.moved > 1 ? "s" : ""} rolled over` : "Nothing to roll over"); }} />
             : kind === "projects" ? <ProjectsView ws={ws} onNew={n => commit(createProject(ws, n).ws, "Project created")} onStatus={(id, s) => commit(setProjectStatus(ws, id, s))} onOpen={id => go(`/app/project/${id}`)} />
-            : prefs.layout === "board" ? <Board ws={ws} issues={issues} rp={rp} onMove={(id, s) => apply([id], () => ({ status: s }), `Moved to ${STATUSES.find(x => x.id === s)!.label}`)} onCreateIn={s => setOverlay({ kind: "create", initial: { status: s as Status } })} />
+            : display.layout === "board" ? <Board ws={ws} issues={issues} rp={rp} order={display.order} onMove={(id, s) => apply([id], () => ({ status: s }), `Moved to ${STATUSES.find(x => x.id === s)!.label}`)} onCreateIn={s => setOverlay({ kind: "create", initial: { status: s as Status } })} />
             : <IssueList groups={groups} rp={rp} onCreateIn={s => setOverlay({ kind: "create", initial: s === "status" || !STATUSES.some(x => x.id === s) ? undefined : { status: s as Status } })} />}
         </div>
         {opened && <IssuePane ws={ws} issue={opened} onUpdate={p => commit(updateIssue(ws, opened.id, p))} onComment={b => commit(addComment(ws, opened.id, b), "Comment added")} onDelete={remove} onClose={() => setOpenId(null)} openPicker={f => openPicker(f, [opened.id])} onOpen={id => { setFocusId(id); setOpenId(id); }} onAddSub={() => setOverlay({ kind: "create", initial: { parentId: opened.id, projectId: opened.projectId, cycleId: opened.cycleId } })} />}
@@ -224,6 +233,7 @@ export function Workspace({ uid, name, email, demo, guest = false, view, firebas
     {toast && <div className="lin-toast" role="status" data-testid="toast">{toast}{history.current.length > 0 && <button onClick={undo}>Undo</button>}</div>}
     {overlay?.kind === "picker" && (() => { const p = pickerFor(overlay); return <Picker title={p.title} options={p.opts} multi={(p as any).multi} onPick={p.pick} onClose={() => setOverlay(null)} />; })()}
     {overlay?.kind === "dup" && <Picker title="Duplicate of" options={ws.issues.filter(i => i.id !== overlay.id && i.status !== "triage").slice(0, 300).map(i => ({ id: i.id, label: `${identifier(ws, i)} ${i.title}`, icon: <StatusIcon status={i.status} /> }))} onPick={of => commit(markDuplicate(ws, overlay.id, of), "Marked as duplicate")} onClose={() => setOverlay(null)} />}
+    {overlay?.kind === "saveview" && <SaveViewDialog filter={q} onClose={() => setOverlay(null)} onSave={n => { const r = saveView(ws, n, q, display); commit(r.ws, "View saved"); setOverlay(null); setQ(""); go(`/app/view/${r.view.id}`); }} />}
     {overlay?.kind === "palette" && <Picker title="Type a command or search" options={paletteItems} onPick={runPalette} onClose={() => setOverlay(null)} />}
     {overlay?.kind === "create" && <CreateModal ws={ws} initial={overlay.initial} onClose={() => setOverlay(null)} onCreate={(input, more) => { const r = createIssue(ws, { ...input, projectId: input.projectId ?? (kind === "project" ? arg ?? null : null) }); commit(r.ws, `Created ${identifier(r.ws, r.issue)}`); if (!more) { setOverlay(null); setFocusId(r.issue.id); } }} />}
     {overlay?.kind === "help" && <div className="lin-overlay" onMouseDown={e => { if (e.target === e.currentTarget) setOverlay(null); }}><HelpDialog onClose={() => setOverlay(null)} /></div>}
